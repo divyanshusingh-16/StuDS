@@ -21,7 +21,7 @@ import AdminDashboard from './components/AdminDashboard';
 import CommandSearch from './components/CommandSearch';
 
 const DEPARTMENT_CATALOG = {
-  "Engineering (B.E./M.E.)": ["Aerospace", "Automobile", "Biotechnology", "Chemical", "Civil", "Electrical", "Mechatronics", "Food Technology", "Computer Science (CSE) - IBM", "Computer Science (CSE) - TCS"],
+  "Engineering (B.E./M.E.)": ["Aerospace", "Automobile", "Biotechnology", "Chemical", "Civil", "Electrical", "Mechatronics", "Food Technology", "Computer Science (CSE)"],
   "Management & Business (BBA/MBA)": ["General", "Marketing", "Finance", "HR", "Business Analytics", "Tourism & Hospitality"],
   "Computing (BCA/MCA)": ["Cloud Computing", "Agentic AI", "UI/UX Design", "Data Analytics", "Full Stack Development"],
   "Other Disciplines": ["Legal Studies", "Pharmacy", "Applied Health Sciences", "Media Studies", "Animation"]

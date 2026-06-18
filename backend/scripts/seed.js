@@ -6,11 +6,23 @@ const Content = require('../models/Content');
 
 const MONGO_URI = process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/studs_portal';
 
+const SEM4_CSE_SUBJECTS = [
+  { name: 'Universal Human Values, Ethics and Life Skills-2', code: 'UHV401' },
+  { name: 'Operating Systems', code: 'CS402' },
+  { name: 'Software Engineering', code: 'CS403' },
+  { name: 'Competitive Coding-I', code: 'CS404' },
+  { name: 'Full Stack Development-I', code: 'CS405' },
+  { name: 'Design and Analysis of Algorithms', code: 'CS406' },
+  { name: 'Object Oriented Programming Using Java', code: 'CS407' },
+  { name: 'Aptitude - II', code: 'GE402' },
+  { name: 'Soft Skills - II', code: 'GE403' }
+];
+
 const seedDatabase = async () => {
   try {
     console.log('🔌 Connecting to MongoDB...');
     await mongoose.connect(MONGO_URI);
-    
+
     console.log('🗑️ Clearing legacy records...');
     await Subject.deleteMany({});
     await Unit.deleteMany({});
@@ -19,62 +31,69 @@ const seedDatabase = async () => {
     console.log('📥 Injecting university curriculum tracks...');
 
     // ----------------------------------------------------
-    // TRACK 1: Engineering (B.E. - CSE (IBM Specialization))
+    // TRACK 1: Engineering — Computer Science (CSE) — Sem 4
     // ----------------------------------------------------
-    const engSubject = new Subject({
-      subjectName: 'Data Structures & Algorithms',
-      subjectCode: 'CS301',
-      semester: 4,
-      department: 'Engineering',
-      course: 'B.E. - CSE (IBM Specialization)',
-      specialization: 'IBM Specialization'
-    });
-    await engSubject.save();
+    const cseSubjects = [];
+    for (const { name, code } of SEM4_CSE_SUBJECTS) {
+      const subject = new Subject({
+        subjectName: name,
+        subjectCode: code,
+        semester: 4,
+        department: 'Engineering (B.E./M.E.)',
+        course: 'Engineering (B.E./M.E.): Computer Science (CSE)',
+        specialization: 'Computer Science (CSE)'
+      });
+      await subject.save();
+      cseSubjects.push(subject);
+    }
 
-    const engUnit = new Unit({
-      subjectId: engSubject._id,
-      unitNumber: 1,
-      unitName: 'Linked Lists & Stacks',
-      chapters: [
-        { chapterId: 'eng-u1-c1', chapterName: 'Singly Linked List Traversals' }
-      ]
-    });
-    await engUnit.save();
+    const daaSubject = cseSubjects.find(s => s.subjectName === 'Design and Analysis of Algorithms');
+    if (daaSubject) {
+      const daaUnit = new Unit({
+        subjectId: daaSubject._id,
+        unitNumber: 1,
+        unitName: 'Algorithm Complexity & Asymptotic Notation',
+        chapters: [
+          { chapterId: 'cse-daa-u1-c1', chapterName: 'Big-O, Omega, and Theta Analysis' }
+        ]
+      });
+      await daaUnit.save();
 
-    const engContent = new Content({
-      chapterId: 'eng-u1-c1',
-      fullNotesMarkdown: `# Singly Linked List Traversals\n\nA singly linked list is a linear data structure where elements are not stored in contiguous memory locations. Each element is a separate object called a node. Each node contains data and a reference (link) to the next node in the sequence.\n\n## Time Complexity\n- Access: O(n)\n- Search: O(n)\n- Insertion: O(1) if at head, O(n) otherwise\n- Deletion: O(1) if at head, O(n) otherwise\n\nTraversing the list requires visiting every node sequentially, leading to a strict O(n) time complexity for a full traversal.`,
-      shortNotes: [
-        'Nodes contain data and a next pointer.',
-        'Head node points to the first element.',
-        'Last node next pointer is null.',
-        'Memory allocation is non-contiguous.',
-        'Strict O(n) time complexity for deep traversals.'
-      ],
-      pyqLinks: [
-        { year: 2024, fileUrl: 'https://example.com/pyq/2024-dsa.pdf' },
-        { year: 2025, fileUrl: 'https://example.com/pyq/2025-dsa.pdf' }
-      ],
-      quizData: [
-        {
-          question: 'What is the time complexity of traversing a singly linked list?',
-          options: ['O(1)', 'O(log n)', 'O(n)', 'O(n^2)'],
-          correctAnswer: 'O(n)'
-        },
-        {
-          question: 'What does the last node of a singly linked list point to?',
-          options: ['Head', 'Previous Node', 'Null', 'Random Memory'],
-          correctAnswer: 'Null'
-        },
-        {
-          question: 'Are nodes in a linked list stored in contiguous memory?',
-          options: ['Yes', 'No', 'Sometimes', 'Only in C++'],
-          correctAnswer: 'No'
-        }
-      ],
-      aiSummary: '1. Linked lists are dynamic data structures.\n2. Elements are distributed across memory.\n3. Nodes link together via pointers.\n4. Traversing requires following pointers sequentially.\n5. O(n) complexity characterizes standard full traversal.'
-    });
-    await engContent.save();
+      const daaContent = new Content({
+        chapterId: 'cse-daa-u1-c1',
+        fullNotesMarkdown: `# Big-O, Omega, and Theta Analysis\n\nAsymptotic notation provides a mathematical framework for describing algorithm efficiency as input size grows.\n\n## Key Notations\n- **Big-O (O):** Upper bound on time complexity. Describes the worst-case scenario.\n- **Omega (Ω):** Lower bound on time complexity. Describes the best-case scenario.\n- **Theta (Θ):** Tight bound. When upper and lower bounds match.\n\n## Common Complexities\n| Notation | Name | Example |\n|----------|------|---------|\n| O(1) | Constant | Array index access |\n| O(log n) | Logarithmic | Binary search |\n| O(n) | Linear | Linear search |\n| O(n log n) | Linearithmic | Merge sort |\n| O(n²) | Quadratic | Bubble sort |\n\nUnderstanding these classes is essential for choosing optimal data structures and algorithms for any given problem.`,
+        shortNotes: [
+          'Big-O describes worst-case upper bound.',
+          'Omega describes best-case lower bound.',
+          'Theta provides a tight bound when both match.',
+          'O(n log n) is optimal for comparison-based sorting.',
+          'Constant O(1) means execution time is independent of input size.'
+        ],
+        pyqLinks: [
+          { year: 2024, fileUrl: 'https://example.com/pyq/2024-daa.pdf' },
+          { year: 2025, fileUrl: 'https://example.com/pyq/2025-daa.pdf' }
+        ],
+        quizData: [
+          {
+            question: 'What does Big-O notation describe?',
+            options: ['Best case', 'Average case', 'Worst case upper bound', 'Exact runtime'],
+            correctAnswer: 'Worst case upper bound'
+          },
+          {
+            question: 'What is the time complexity of binary search?',
+            options: ['O(1)', 'O(n)', 'O(log n)', 'O(n²)'],
+            correctAnswer: 'O(log n)'
+          },
+          {
+            question: 'Which notation provides a tight bound?',
+            options: ['Big-O', 'Omega', 'Theta', 'Little-o'],
+            correctAnswer: 'Theta'
+          }
+        ],
+        aiSummary: '1. Asymptotic notation classifies algorithms by growth rate.\n2. Big-O captures worst-case behavior.\n3. Omega captures best-case behavior.\n4. Theta captures tight bounds when both coincide.\n5. Choosing the right complexity class is fundamental to performant software design.'
+      });
+      await daaContent.save();
+    }
 
     // ----------------------------------------------------
     // TRACK 2: Computing (BCA - Agentic AI)
@@ -83,8 +102,8 @@ const seedDatabase = async () => {
       subjectName: 'Introduction to LLMs and Multi-Agent Frameworks',
       subjectCode: 'AI401',
       semester: 4,
-      department: 'Computing',
-      course: 'BCA - Agentic AI',
+      department: 'Computing (BCA/MCA)',
+      course: 'Computing (BCA/MCA): Agentic AI',
       specialization: 'Agentic AI'
     });
     await compSubject.save();
