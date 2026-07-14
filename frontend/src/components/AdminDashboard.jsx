@@ -5,7 +5,7 @@ const COURSE_CATALOG = {
   'Engineering': [
     'B.E. - Aerospace', 'B.E. - Automobile', 'B.E. - Biotechnology', 'B.E. - Chemical',
     'B.E. - Civil', 'B.E. - Electrical', 'B.E. - Mechatronics', 'B.E. - Food Technology',
-    'B.E. - CSE (IBM Specialization)', 'B.E. - CSE (TCS Specialization)',
+    'Computer Science (CSE)',
   ],
   'Management & Business': [
     'BBA - General', 'BBA - Marketing', 'BBA - Finance', 'BBA - HR',
