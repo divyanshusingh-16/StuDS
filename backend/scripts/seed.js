@@ -18,6 +18,16 @@ const SEM4_CSE_SUBJECTS = [
   { name: 'Soft Skills - II', code: 'GE403' }
 ];
 
+const SEM5_CSE_SUBJECTS = [
+  { name: 'Project Based Learning in Java', code: 'CS501' },
+  { name: 'Full Stack Development - II', code: 'CS502' },
+  { name: 'Competitive Coding-II', code: 'CS503' },
+  { name: 'Computer Networks', code: 'CS504' },
+  { name: 'Probability and Statistics', code: 'MA501' },
+  { name: 'Soft Skills-III', code: 'GE501' },
+  { name: 'Aptitude-III', code: 'GE502' }
+];
+
 const seedDatabase = async () => {
   try {
     console.log('🔌 Connecting to MongoDB...');
@@ -93,6 +103,21 @@ const seedDatabase = async () => {
         aiSummary: '1. Asymptotic notation classifies algorithms by growth rate.\n2. Big-O captures worst-case behavior.\n3. Omega captures best-case behavior.\n4. Theta captures tight bounds when both coincide.\n5. Choosing the right complexity class is fundamental to performant software design.'
       });
       await daaContent.save();
+    }
+
+    // ----------------------------------------------------
+    // TRACK 1b: Engineering — Computer Science (CSE) — Sem 5
+    // ----------------------------------------------------
+    for (const { name, code } of SEM5_CSE_SUBJECTS) {
+      const subject = new Subject({
+        subjectName: name,
+        subjectCode: code,
+        semester: 5,
+        department: 'Engineering (B.E./M.E.)',
+        course: 'Engineering (B.E./M.E.): Computer Science (CSE)',
+        specialization: 'Computer Science (CSE)'
+      });
+      await subject.save();
     }
 
     // ----------------------------------------------------
