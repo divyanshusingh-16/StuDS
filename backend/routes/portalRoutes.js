@@ -9,7 +9,12 @@ const router = express.Router();
 router.get('/subjects/:semester', async (req, res) => {
   try {
     const semester = parseInt(req.params.semester, 10);
-    const subjects = await Subject.find({ semester })
+    const { course } = req.query;
+
+    const filter = { semester };
+    if (course) filter.course = course;
+
+    const subjects = await Subject.find(filter)
       .select('_id subjectName subjectCode')
       .sort({ subjectName: 1 })
       .lean();
