@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { fetchSubjectsBySemester, fetchUnitsBySubject, upsertContent, uploadPdfFile, loginAdmin, generateAiSummary } from '../services/api';
+import { fetchSubjectsBySemester, fetchUnitsBySubject, upsertContent, uploadPdfFile, loginAdmin, getCurrentUser, logoutAdmin, generateAiSummary } from '../services/api';
 
 const COURSE_CATALOG = {
   'Engineering': [
@@ -27,13 +27,11 @@ const SELECT_CLS = 'w-full px-3 py-2 text-sm border border-slate-300 rounded bg-
 const LABEL_CLS = 'block text-xs font-bold uppercase tracking-wider text-slate-500 mb-2';
 
 export default function AdminDashboard() {
-  const [isAdminAuthenticated, setIsAdminAuthenticated] = useState(() =>
-    sessionStorage.getItem('adminAuth') === 'true'
-  );
-  const [loginPasscode, setLoginPasscode] = useState('');
+  const [isCheckingAuth, setIsCheckingAuth] = useState(true);
+  const [authenticatedUser, setAuthenticatedUser] = useState(null);
+  const [loginEmail, setLoginEmail] = useState('');
+  const [loginPassword, setLoginPassword] = useState('');
   const [loginError, setLoginError] = useState('');
-
-  const [adminSecret, setAdminSecret] = useState('');
 
   // --- Cascade State ---
   const [department, setDepartment] = useState('');
@@ -63,6 +61,13 @@ export default function AdminDashboard() {
   const [aiSummary, setAiSummary] = useState('');
   const [isGeneratingSummary, setIsGeneratingSummary] = useState(false);
   const [aiSummaryError, setAiSummaryError] = useState('');
+
+  useEffect(() => {
+    getCurrentUser()
+      .then((response) => setAuthenticatedUser(response?.user || null))
+      .catch(() => setAuthenticatedUser(null))
+      .finally(() => setIsCheckingAuth(false));
+  }, []);
 
   // --- Cascade Reset Handlers ---
   const handleDepartmentChange = (val) => {
@@ -144,11 +149,10 @@ export default function AdminDashboard() {
     const file = e.target.files?.[0];
     if (!file) return;
     if (file.type !== 'application/pdf') { setPyqUploadError('Only PDF files are allowed.'); return; }
-    if (!adminSecret) { setPyqUploadError('Admin Secret is required before uploading files.'); return; }
     setPyqUploadError('');
     setIsUploadingPyq(true);
     try {
-      const response = await uploadPdfFile(file, adminSecret);
+      const response = await uploadPdfFile(file);
       setNewPyqUrl(response.fileUrl);
     } catch (err) {
       setPyqUploadError(err.message);
@@ -185,7 +189,7 @@ export default function AdminDashboard() {
     setAiSummary('');
     setIsGeneratingSummary(true);
     try {
-      const summary = await generateAiSummary(fullNotesMarkdown, adminSecret);
+      const summary = await generateAiSummary(fullNotesMarkdown);
       setAiSummary(summary);
     } catch (err) {
       setAiSummaryError(err.message);
@@ -198,7 +202,6 @@ export default function AdminDashboard() {
     setFeedback(null);
     setValidationErrors({});
 
-    if (!adminSecret) { setValidationErrors({ auth: 'Admin Secret is required.' }); return; }
     if (!department || !course) { setValidationErrors({ course: 'Department and Course are required.' }); return; }
     if (!chapterId) { setValidationErrors({ chapter: 'Please select a valid chapter.' }); return; }
     if (!fullNotesMarkdown.trim()) { setValidationErrors({ notes: 'Full Notes Markdown cannot be empty.' }); return; }
@@ -212,7 +215,7 @@ export default function AdminDashboard() {
         pyqLinks,
         quizData,
         ...(aiSummary.trim() ? { aiSummary } : {}),
-      }, adminSecret);
+      });
 
       setFeedback({ type: 'success', text: 'Content successfully upserted!' });
       setFullNotesMarkdown('');
@@ -232,16 +235,27 @@ export default function AdminDashboard() {
     e.preventDefault();
     setLoginError('');
     try {
-      await loginAdmin(loginPasscode);
-      sessionStorage.setItem('adminAuth', 'true');
-      setAdminSecret(loginPasscode);
-      setIsAdminAuthenticated(true);
+      const response = await loginAdmin(loginEmail, loginPassword);
+      setAuthenticatedUser(response.user);
+      setLoginPassword('');
     } catch (err) {
       setLoginError(err.message);
     }
   };
 
-  if (!isAdminAuthenticated) {
+  const handleLogout = async () => {
+    try {
+      await logoutAdmin();
+    } finally {
+      setAuthenticatedUser(null);
+    }
+  };
+
+  if (isCheckingAuth) {
+    return <div className="min-h-screen bg-slate-50 flex items-center justify-center text-sm text-slate-500">Checking authentication...</div>;
+  }
+
+  if (!authenticatedUser) {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center font-sans">
         <form onSubmit={handleLogin} className="bg-white p-8 border border-slate-200 rounded-lg shadow-sm w-96 flex flex-col gap-4">
@@ -250,14 +264,21 @@ export default function AdminDashboard() {
             <p className="text-sm text-slate-500">Restricted Access</p>
           </div>
           <input
+            type="email"
+            placeholder="Email address"
+            value={loginEmail}
+            onChange={e => setLoginEmail(e.target.value)}
+            className="w-full px-4 py-2 border border-slate-300 rounded focus:outline-none focus:border-slate-900 text-sm"
+          />
+          <input
             type="password"
-            placeholder="Enter Passcode"
-            value={loginPasscode}
-            onChange={e => setLoginPasscode(e.target.value)}
+            placeholder="Password"
+            value={loginPassword}
+            onChange={e => setLoginPassword(e.target.value)}
             className="w-full px-4 py-2 border border-slate-300 rounded focus:outline-none focus:border-slate-900 text-sm"
           />
           {loginError && <p className="text-xs text-red-600 text-center font-medium">{loginError}</p>}
-          <button type="submit" className="w-full py-2 bg-slate-900 text-white font-medium rounded text-sm hover:bg-slate-800 transition-colors">Authorize Session</button>
+          <button type="submit" className="w-full py-2 bg-slate-900 text-white font-medium rounded text-sm hover:bg-slate-800 transition-colors">Sign in</button>
         </form>
       </div>
     );
@@ -270,14 +291,8 @@ export default function AdminDashboard() {
         <header className="px-6 py-4 border-b border-slate-200 bg-slate-900 text-white flex justify-between items-center">
           <h1 className="font-semibold tracking-tight text-lg">Admin Operations Workspace</h1>
           <div className="flex items-center gap-3">
-            <span className="text-xs font-medium uppercase tracking-wider text-slate-400">Auth</span>
-            <input
-              type="password"
-              placeholder="Admin Secret"
-              value={adminSecret}
-              onChange={e => setAdminSecret(e.target.value)}
-              className={`px-3 py-1.5 text-sm rounded bg-slate-800 border ${validationErrors.auth ? 'border-red-500' : 'border-slate-700'} text-white focus:outline-none focus:border-slate-500 w-48`}
-            />
+            <span className="text-xs font-medium text-slate-300">{authenticatedUser.email}</span>
+            <button onClick={handleLogout} className="text-xs font-semibold text-slate-300 hover:text-white">Sign out</button>
           </div>
         </header>
 

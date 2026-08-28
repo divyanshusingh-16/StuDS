@@ -2,7 +2,6 @@ const express = require('express');
 const Subject = require('../models/Subject');
 const Unit = require('../models/Unit');
 const Content = require('../models/Content');
-const { generateChapterSummary } = require('../services/aiService');
 
 const router = express.Router();
 
@@ -101,26 +100,6 @@ router.get('/content/:chapterId', async (req, res) => {
     res.json(content);
   } catch (error) {
     res.status(500).json({ error: error.message });
-  }
-});
-
-router.post('/admin/generate-summary', async (req, res) => {
-  const { chapterContentMarkdown } = req.body;
-
-  if (!chapterContentMarkdown || typeof chapterContentMarkdown !== 'string' || chapterContentMarkdown.trim().length === 0) {
-    return res.status(400).json({ error: 'chapterContentMarkdown is required and must be a non-empty string.' });
-  }
-
-  if (chapterContentMarkdown.length > 50000) {
-    return res.status(413).json({ error: 'Input exceeds the maximum allowed size of 50,000 characters.' });
-  }
-
-  try {
-    const summary = await generateChapterSummary(chapterContentMarkdown);
-    res.json({ summary });
-  } catch (error) {
-    console.error('[AI] Summary generation failed:', error.message);
-    res.status(502).json({ error: 'AI service failed to generate a summary. Please try again.' });
   }
 });
 
