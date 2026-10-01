@@ -19,13 +19,12 @@ const SEM4_CSE_SUBJECTS = [
 ];
 
 const SEM5_CSE_SUBJECTS = [
-  { name: 'Project Based Learning in Java', code: 'CS501' },
-  { name: 'Full Stack Development - II', code: 'CS502' },
-  { name: 'Competitive Coding-II', code: 'CS503' },
-  { name: 'Computer Networks', code: 'CS504' },
-  { name: 'Probability and Statistics', code: 'MA501' },
-  { name: 'Soft Skills-III', code: 'GE501' },
-  { name: 'Aptitude-III', code: 'GE502' }
+  { name: 'Project Based Learning in Java', code: 'CS501', order: 1 },
+  { name: 'Full Stack Development – II', code: 'CS502', order: 2 },
+  { name: 'Competitive Coding – II', code: 'CS503', order: 3 },
+  { name: 'Computer Networks', code: 'CS504', order: 4 },
+  { name: 'Probability and Statistics', code: 'MA501', order: 5 },
+  { name: 'Aptitude – III', code: 'GE502', order: 6 }
 ];
 
 const seedDatabase = async () => {
@@ -108,14 +107,15 @@ const seedDatabase = async () => {
     // ----------------------------------------------------
     // TRACK 1b: Engineering — Computer Science (CSE) — Sem 5
     // ----------------------------------------------------
-    for (const { name, code } of SEM5_CSE_SUBJECTS) {
+    for (const { name, code, order } of SEM5_CSE_SUBJECTS) {
       const subject = new Subject({
         subjectName: name,
         subjectCode: code,
         semester: 5,
         department: 'Engineering (B.E./M.E.)',
         course: 'Engineering (B.E./M.E.): Computer Science (CSE)',
-        specialization: 'Computer Science (CSE)'
+        specialization: 'Computer Science (CSE)',
+        order: order || 0
       });
       await subject.save();
     }

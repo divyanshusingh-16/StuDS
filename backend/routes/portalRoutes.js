@@ -10,14 +10,64 @@ router.get('/subjects/:semester', async (req, res) => {
     const semester = parseInt(req.params.semester, 10);
     const { course } = req.query;
 
-    const filter = { semester };
+    const filter = {
+      semester,
+      subjectCode: { $not: /^CONT_/i },
+      subjectName: { $not: /^CONT_/i }
+    };
     if (course) filter.course = course;
+    if (semester === 5) {
+      filter.subjectName = {
+        ...filter.subjectName,
+        $nin: ['Soft Skills-III', 'Soft Skills – III', 'Soft Skills - III']
+      };
+    }
 
     const subjects = await Subject.find(filter)
-      .select('_id subjectName subjectCode')
-      .sort({ subjectName: 1 })
+      .select('_id subjectName subjectCode semester department course specialization order')
+      .sort({ order: 1, subjectName: 1 })
       .lean();
-    res.json(subjects);
+
+    // Clean subject names and deduplicate
+    const seenNames = new Set();
+    const cleanSubjects = [];
+
+    for (const sub of subjects) {
+      // Remove any leading code prefix like "CS501 - " or "CS501: " if present
+      let cleanName = (sub.subjectName || '')
+        .replace(/^[A-Z0-9_-]+\s*[-:]\s*/i, '')
+        .trim();
+
+      // Normalize hyphens for consistency
+      cleanName = cleanName.replace(/\s*-\s*II/g, ' – II').replace(/\s*-\s*III/g, ' – III');
+
+      if (/^CONT_/i.test(cleanName) || /^CONT_/i.test(sub.subjectCode)) {
+        continue;
+      }
+      if (semester === 5 && /^Soft Skills/i.test(cleanName)) {
+        continue;
+      }
+
+      // Deduplicate by clean name
+      const normalizedKey = cleanName.toLowerCase().replace(/[^a-z0-9]/g, '');
+      if (seenNames.has(normalizedKey)) {
+        continue;
+      }
+      seenNames.add(normalizedKey);
+
+      cleanSubjects.push({
+        _id: sub._id,
+        subjectName: cleanName,
+        subjectCode: sub.subjectCode,
+        semester: sub.semester,
+        department: sub.department,
+        course: sub.course,
+        specialization: sub.specialization,
+        order: sub.order || 0
+      });
+    }
+
+    res.json(cleanSubjects);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

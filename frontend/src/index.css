@@ -7,11 +7,12 @@
 }
 
 body {
-  background-color: var(--color-white);
-  color: var(--color-slate-900);
+  background-color: #ffffff;
+  color: #171717;
+  font-feature-settings: "cv02", "cv03", "cv04", "cv11";
 }
 
 .dark body {
-  background-color: var(--color-slate-950);
-  color: var(--color-slate-100);
+  background-color: #0f1012;
+  color: #ededed;
 }
