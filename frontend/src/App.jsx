@@ -850,28 +850,48 @@ function Portal() {
                 </div>
 
                 {selectedUnits.length > 0 ? (
-                  /* If units exist (e.g. Sem 4 DAA) */
-                  <div className="space-y-3">
+                  /* If units exist */
+                  <div className="space-y-4 mt-4">
                     {selectedUnits.map((unit) => (
-                      <div key={unit._id} className="border border-neutral-200 dark:border-[#26282e] rounded-lg p-4 bg-neutral-50/50 dark:bg-[#181a1f]">
-                        <div className="flex items-center justify-between mb-2">
-                          <span className="text-xs font-semibold text-neutral-900 dark:text-white">
-                            Unit {unit.unitNumber}: {unit.unitName}
-                          </span>
-                          <span className="text-[11px] text-neutral-400 font-mono">
-                            {unit.chapters?.length || 0} chapters
-                          </span>
+                      <div key={unit._id} className="border-b border-neutral-200 dark:border-[#222428] pb-4 last:border-0">
+                        <div className="mb-3">
+                          <h4 className="text-[11px] font-bold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">
+                            Unit {unit.unitNumber}
+                          </h4>
+                          <h3 className="text-sm font-semibold text-neutral-900 dark:text-white mt-1">
+                            {unit.unitName}
+                          </h3>
+                          {unit.contactHours && (
+                            <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1">
+                              {unit.contactHours} Contact Hours
+                            </p>
+                          )}
                         </div>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-2">
+                        
+                        <div className="pl-0 space-y-2">
                           {unit.chapters?.map((chap) => (
-                            <button
-                              key={chap.chapterId}
-                              onClick={() => setSelectedChapter(chap)}
-                              className="p-2.5 text-left rounded-md bg-white dark:bg-[#202229] border border-neutral-200 dark:border-[#2c2f37] hover:border-neutral-400 text-xs text-neutral-800 dark:text-neutral-200 font-medium flex items-center justify-between transition-all"
-                            >
-                              <span className="truncate pr-2">{chap.chapterName}</span>
-                              <ChevronRight className="w-3.5 h-3.5 shrink-0 text-neutral-400" />
-                            </button>
+                            <div key={chap.chapterId} className="group">
+                              <div className="flex items-start gap-3">
+                                <div className="flex-1">
+                                  <button
+                                    onClick={() => setSelectedChapter(chap)}
+                                    className="text-xs font-medium text-neutral-800 dark:text-neutral-200 hover:text-neutral-900 dark:hover:text-white text-left flex items-center justify-between w-full p-2 rounded-md hover:bg-neutral-50 dark:hover:bg-[#1a1c22] transition-colors"
+                                  >
+                                    <span>{chap.chapterName}</span>
+                                    <ChevronRight className="w-3.5 h-3.5 text-neutral-400 opacity-0 group-hover:opacity-100 transition-opacity" />
+                                  </button>
+                                  {chap.topics && chap.topics.length > 0 && (
+                                    <div className="pl-4 mt-1 space-y-1">
+                                      {chap.topics.map((topic, tIdx) => (
+                                        <div key={tIdx} className="text-[11px] text-neutral-500 dark:text-neutral-400 pl-2 border-l border-neutral-200 dark:border-[#2a2d34]">
+                                          {topic}
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
                           ))}
                         </div>
                       </div>

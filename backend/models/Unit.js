@@ -13,6 +13,10 @@ const chapterSchema = new mongoose.Schema(
       required: true,
       trim: true,
     },
+    topics: {
+      type: [String],
+      default: [],
+    },
   },
   { _id: false }
 );
@@ -32,6 +36,10 @@ const unitSchema = new mongoose.Schema(
       type: String,
       required: true,
       trim: true,
+    },
+    contactHours: {
+      type: Number,
+      default: null,
     },
     chapters: [chapterSchema],
   },
