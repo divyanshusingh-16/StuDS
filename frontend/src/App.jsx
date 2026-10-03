@@ -538,10 +538,10 @@ function Portal() {
                         </div>
                       )}
                       {content.notes && content.notes.length > 0 ? (
-                        <div className="flex flex-col gap-10">
+                        <div className="flex flex-col gap-12">
                           {content.notes.map(note => (
-                            <div key={note._id} className="prose prose-neutral dark:prose-invert prose-sm max-w-none leading-relaxed border-b border-neutral-100 dark:border-[#222428] pb-8 last:border-0">
-                              <h2 className="text-xl font-bold tracking-tight text-neutral-900 dark:text-white mb-4">{note.title}</h2>
+                            <div key={note._id} className="prose prose-slate dark:prose-invert max-w-[75ch] mx-auto text-base leading-loose border-b border-neutral-100 dark:border-[#222428] pb-12 last:border-0">
+                              <h2 className="text-2xl md:text-3xl font-extrabold tracking-tight text-slate-900 dark:text-white mb-8">{note.title}</h2>
                               <ReactMarkdown>{note.content}</ReactMarkdown>
                             </div>
                           ))}
