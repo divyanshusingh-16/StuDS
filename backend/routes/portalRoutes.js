@@ -147,6 +147,11 @@ router.get('/content/:chapterId', async (req, res) => {
       return res.status(404).json({ error: 'No study materials uploaded for this chapter yet.' });
     }
     
+    // Only return published notes to students
+    if (content.notes && Array.isArray(content.notes)) {
+      content.notes = content.notes.filter(note => note.status === 'published');
+    }
+    
     res.json(content);
   } catch (error) {
     res.status(500).json({ error: error.message });

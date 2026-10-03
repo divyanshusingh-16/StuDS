@@ -14,6 +14,20 @@ const pyqLinkSchema = new mongoose.Schema(
   { _id: false }
 );
 
+const noteSchema = new mongoose.Schema(
+  {
+    title: { type: String, required: true },
+    content: { type: String, required: true },
+    subject: { type: String },
+    unit: { type: String },
+    chapter: { type: String },
+    status: { type: String, enum: ['draft', 'published'], default: 'draft' },
+    createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  },
+  { timestamps: true }
+);
+
+
 const quizDataSchema = new mongoose.Schema(
   {
     question: {
@@ -54,7 +68,7 @@ const contentSchema = new mongoose.Schema(
     },
     fullNotesMarkdown: {
       type: String,
-      required: true,
+      default: '',
     },
     shortNotes: {
       type: [String],
@@ -71,6 +85,10 @@ const contentSchema = new mongoose.Schema(
     aiSummary: {
       type: String,
       default: null,
+    },
+    notes: {
+      type: [noteSchema],
+      default: [],
     },
   },
   {

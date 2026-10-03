@@ -133,7 +133,7 @@ function Portal() {
   const [contentLoading, setContentLoading] = useState(false);
   
   const tabs = [
-    { id: 'full-notes', label: 'Full Notes' },
+    { id: 'full-notes', label: 'Study Material' },
     { id: 'shortNotes', label: 'Short Notes' },
     { id: 'pyqs', label: 'Past Papers' },
     { id: 'quiz', label: 'Practice Quiz' }
@@ -537,9 +537,24 @@ function Portal() {
                           </div>
                         </div>
                       )}
-                      <div className="prose prose-neutral dark:prose-invert prose-sm max-w-none leading-relaxed">
-                        <ReactMarkdown>{content.fullNotesMarkdown || '*No full notes available.*'}</ReactMarkdown>
-                      </div>
+                      {content.notes && content.notes.length > 0 ? (
+                        <div className="flex flex-col gap-10">
+                          {content.notes.map(note => (
+                            <div key={note._id} className="prose prose-neutral dark:prose-invert prose-sm max-w-none leading-relaxed border-b border-neutral-100 dark:border-[#222428] pb-8 last:border-0">
+                              <h2 className="text-xl font-bold tracking-tight text-neutral-900 dark:text-white mb-4">{note.title}</h2>
+                              <ReactMarkdown>{note.content}</ReactMarkdown>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="prose prose-neutral dark:prose-invert prose-sm max-w-none leading-relaxed">
+                          {content.fullNotesMarkdown ? (
+                            <ReactMarkdown>{content.fullNotesMarkdown}</ReactMarkdown>
+                          ) : (
+                            <p className="text-neutral-500 italic">Study material isn't available yet.</p>
+                          )}
+                        </div>
+                      )}
                     </div>
                   )}
 

@@ -44,6 +44,12 @@ router.post('/unit', requireRole('super_admin'), async (req, res) => {
 // POST /content/upsert
 router.post('/content/upsert', requireRole('content_admin', 'super_admin'), contentController.upsertChapterContent);
 
+// Notes CRUD
+router.get('/content/:chapterId/notes', requireRole('content_admin', 'super_admin'), contentController.getNotes);
+router.post('/content/:chapterId/notes', requireRole('content_admin', 'super_admin'), contentController.createNote);
+router.put('/content/:chapterId/notes/:noteId', requireRole('content_admin', 'super_admin'), contentController.updateNote);
+router.delete('/content/:chapterId/notes/:noteId', requireRole('content_admin', 'super_admin'), contentController.deleteNote);
+
 // POST /upload-pdf
 router.post('/upload-pdf', requireRole('content_admin', 'super_admin'), uploadMiddleware.single('file'), async (req, res) => {
   try {

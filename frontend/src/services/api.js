@@ -62,6 +62,40 @@ export const upsertContent = async (contentData) => {
   return res.json();
 };
 
+export const fetchNotes = async (chapterId) => {
+  const res = await apiFetch(`/admin/content/${chapterId}/notes`);
+  if (!res.ok) throw new Error('Failed to fetch notes');
+  return res.json();
+};
+
+export const createNote = async (chapterId, noteData) => {
+  const res = await apiFetch(`/admin/content/${chapterId}/notes`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(noteData),
+  });
+  if (!res.ok) throw new Error('Failed to create note');
+  return res.json();
+};
+
+export const updateNote = async (chapterId, noteId, noteData) => {
+  const res = await apiFetch(`/admin/content/${chapterId}/notes/${noteId}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(noteData),
+  });
+  if (!res.ok) throw new Error('Failed to update note');
+  return res.json();
+};
+
+export const deleteNote = async (chapterId, noteId) => {
+  const res = await apiFetch(`/admin/content/${chapterId}/notes/${noteId}`, {
+    method: 'DELETE',
+  });
+  if (!res.ok) throw new Error('Failed to delete note');
+  return res.json();
+};
+
 export const uploadPdfFile = async (file) => {
   const formData = new FormData();
   formData.append('file', file);

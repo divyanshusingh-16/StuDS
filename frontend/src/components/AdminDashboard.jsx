@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { fetchSubjectsBySemester, fetchUnitsBySubject, upsertContent, uploadPdfFile, loginAdmin, getCurrentUser, logoutAdmin, generateAiSummary } from '../services/api';
+import { fetchSubjectsBySemester, fetchUnitsBySubject, upsertContent, uploadPdfFile, loginAdmin, getCurrentUser, logoutAdmin, generateAiSummary, fetchNotes, createNote, updateNote, deleteNote } from '../services/api';
 
 const COURSE_CATALOG = {
   'Engineering': [
@@ -45,6 +45,15 @@ export default function AdminDashboard() {
 
   // --- Content States ---
   const [fullNotesMarkdown, setFullNotesMarkdown] = useState('');
+  
+  // --- Study Material Notes State ---
+  const [notes, setNotes] = useState([]);
+  const [editingNoteId, setEditingNoteId] = useState(null);
+  const [noteTitle, setNoteTitle] = useState('');
+  const [noteContent, setNoteContent] = useState('');
+  const [noteStatus, setNoteStatus] = useState('draft');
+  const [isNotePreview, setIsNotePreview] = useState(false);
+  
   const [shortNotes, setShortNotes] = useState([]);
   const [newShortNote, setNewShortNote] = useState('');
   const [pyqLinks, setPyqLinks] = useState([]);
@@ -127,11 +136,81 @@ export default function AdminDashboard() {
   const chapters = activeUnit?.chapters || [];
   const courseOptions = COURSE_CATALOG[department] || [];
 
+  // Fetch notes when chapter changes
+  useEffect(() => {
+    if (!chapterId) {
+      setNotes([]);
+      setEditingNoteId(null);
+      return;
+    }
+    fetchNotes(chapterId).then(setNotes).catch(console.error);
+  }, [chapterId]);
+
   // --- Content Handlers ---
   const handleAddShortNote = () => {
     if (!newShortNote.trim()) return;
     setShortNotes([...shortNotes, newShortNote.trim()]);
     setNewShortNote('');
+  };
+
+  const handleSaveNote = async () => {
+    if (!noteTitle.trim() || !noteContent.trim()) {
+      alert('Note title and content are required.');
+      return;
+    }
+    setLoading(true);
+    try {
+      const activeSubject = subjects.find(s => s._id === subjectId);
+      const subjectName = activeSubject ? activeSubject.subjectName : '';
+      const unitName = activeUnit ? `Unit ${activeUnit.unitNumber}` : '';
+
+      const payload = { title: noteTitle, content: noteContent, status: noteStatus, subject: subjectName, unit: unitName };
+      
+      if (editingNoteId) {
+        const updated = await updateNote(chapterId, editingNoteId, payload);
+        setNotes(notes.map(n => n._id === editingNoteId ? updated : n));
+      } else {
+        const created = await createNote(chapterId, payload);
+        setNotes([...notes, created]);
+      }
+      
+      setNoteTitle('');
+      setNoteContent('');
+      setNoteStatus('draft');
+      setEditingNoteId(null);
+      setIsNotePreview(false);
+    } catch (err) {
+      alert(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleEditNote = (note) => {
+    setEditingNoteId(note._id);
+    setNoteTitle(note.title);
+    setNoteContent(note.content);
+    setNoteStatus(note.status);
+    setIsNotePreview(false);
+  };
+
+  const handleDeleteNote = async (id) => {
+    if (!confirm('Are you sure you want to delete this note?')) return;
+    setLoading(true);
+    try {
+      await deleteNote(chapterId, id);
+      setNotes(notes.filter(n => n._id !== id));
+      if (editingNoteId === id) {
+        setNoteTitle('');
+        setNoteContent('');
+        setNoteStatus('draft');
+        setEditingNoteId(null);
+      }
+    } catch (err) {
+      alert(err.message);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleRemoveShortNote = (index) => setShortNotes(shortNotes.filter((_, i) => i !== index));
@@ -204,7 +283,6 @@ export default function AdminDashboard() {
 
     if (!department || !course) { setValidationErrors({ course: 'Department and Course are required.' }); return; }
     if (!chapterId) { setValidationErrors({ chapter: 'Please select a valid chapter.' }); return; }
-    if (!fullNotesMarkdown.trim()) { setValidationErrors({ notes: 'Full Notes Markdown cannot be empty.' }); return; }
 
     setLoading(true);
     try {
@@ -409,10 +487,93 @@ export default function AdminDashboard() {
             ) : (
               <div className="max-w-3xl mx-auto flex flex-col gap-10 pb-12">
 
-                {/* Module A */}
+                {/* Study Material Notes Module */}
+                <div className="flex flex-col gap-4">
+                  <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                    <h2 className="text-base font-bold text-slate-900">Study Material Notes System</h2>
+                  </div>
+                  
+                  {notes.length > 0 && (
+                    <div className="border border-slate-200 rounded overflow-hidden">
+                      <table className="w-full text-sm text-left">
+                        <thead className="bg-slate-50 text-xs uppercase text-slate-500 font-bold border-b border-slate-200">
+                          <tr>
+                            <th className="px-4 py-2">Title</th>
+                            <th className="px-4 py-2 w-24 text-center">Status</th>
+                            <th className="px-4 py-2 w-32 text-right">Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-200 bg-white">
+                          {notes.map(note => (
+                            <tr key={note._id}>
+                              <td className="px-4 py-2 font-medium text-slate-900 truncate max-w-[200px]">{note.title}</td>
+                              <td className="px-4 py-2 text-center">
+                                <span className={`px-2 py-1 text-[10px] font-bold uppercase rounded-full ${note.status === 'published' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-600'}`}>
+                                  {note.status}
+                                </span>
+                              </td>
+                              <td className="px-4 py-2 text-right flex items-center justify-end gap-2">
+                                <button onClick={() => handleEditNote(note)} disabled={loading} className="text-xs font-bold text-blue-600 hover:underline">Edit</button>
+                                <button onClick={() => handleDeleteNote(note._id)} disabled={loading} className="text-xs font-bold text-red-600 hover:underline">Delete</button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+
+                  <div className="border border-slate-200 rounded p-4 bg-slate-50 flex flex-col gap-4">
+                    <h3 className="text-sm font-bold text-slate-900">{editingNoteId ? 'Edit Note' : 'Create New Note'}</h3>
+                    <input
+                      type="text"
+                      placeholder="Note Title"
+                      value={noteTitle}
+                      onChange={e => setNoteTitle(e.target.value)}
+                      disabled={loading}
+                      className="w-full px-3 py-2 text-sm border border-slate-300 rounded bg-white focus:outline-none focus:border-slate-500 disabled:bg-slate-100"
+                    />
+                    <textarea
+                      rows={6}
+                      placeholder="Note Content (Markdown supported)..."
+                      value={noteContent}
+                      onChange={e => setNoteContent(e.target.value)}
+                      disabled={loading}
+                      className="w-full px-3 py-2 text-sm border border-slate-300 rounded bg-white focus:outline-none focus:border-slate-500 font-mono disabled:bg-slate-100"
+                    />
+                    <div className="flex gap-3 items-center">
+                      <select
+                        value={noteStatus}
+                        onChange={e => setNoteStatus(e.target.value)}
+                        disabled={loading}
+                        className="flex-1 px-3 py-2 text-sm border border-slate-300 rounded bg-white focus:outline-none focus:border-slate-500 disabled:bg-slate-100"
+                      >
+                        <option value="draft">Draft (Hidden from students)</option>
+                        <option value="published">Published (Visible to students)</option>
+                      </select>
+                      
+                      {editingNoteId && (
+                        <button onClick={() => {
+                          setEditingNoteId(null);
+                          setNoteTitle('');
+                          setNoteContent('');
+                          setNoteStatus('draft');
+                        }} disabled={loading} className="px-4 py-2 text-slate-600 text-sm font-medium hover:underline">
+                          Cancel
+                        </button>
+                      )}
+                      
+                      <button onClick={handleSaveNote} disabled={loading} className="px-4 py-2 bg-slate-900 text-white text-sm font-medium rounded hover:bg-slate-800 transition-colors disabled:bg-slate-400 shrink-0">
+                        {editingNoteId ? 'Update Note' : 'Create Note'}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Legacy Module A */}
                 <div className="flex flex-col gap-2">
                   <div className="flex items-center justify-between border-b border-slate-200 pb-2">
-                    <h2 className="text-sm font-bold text-slate-900">Module A: Full Notes</h2>
+                    <h2 className="text-sm font-bold text-slate-900">Legacy Module A: Full Notes (Used for AI Summary)</h2>
                     <button
                       onClick={handleGenerateSummary}
                       disabled={!fullNotesMarkdown.trim() || isGeneratingSummary || loading}
