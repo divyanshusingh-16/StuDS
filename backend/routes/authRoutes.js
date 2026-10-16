@@ -18,7 +18,7 @@ const DUMMY_PASSWORD_HASH = '$2b$12$OOGwOxQFWKUUFUOnPviRGu4FSIZh0i94vwNsfi06CGL2
 
 const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  limit: 10,
+  limit: 15,
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Too many login attempts. Please try again later.' },

@@ -1,4 +1,7 @@
 require('dotenv').config();
+const dns = require('dns');
+try { dns.setServers(['8.8.8.8', '1.1.1.1']); } catch (e) {}
+const path = require('path');
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
@@ -34,6 +37,7 @@ app.use(cors({
   credentials: true,
 }));
 
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 app.use('/api', portalRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/auth', authRoutes);
@@ -47,10 +51,15 @@ app.get('/', (req, res) => {
 });
 
 app.use((err, req, res, next) => {
-  console.error(err.stack);
-  res.status(err.status || 500).json({
+  console.error(err.stack || err.message);
+  const status = err.code === 'LIMIT_FILE_SIZE' ? 413 : (err.status || 500);
+  const message = err.code === 'LIMIT_FILE_SIZE'
+    ? 'File size exceeds maximum allowed limit (35MB).'
+    : (err.message || 'Internal Server Error');
+
+  res.status(status).json({
     success: false,
-    error: 'Internal Server Error'
+    error: message
   });
 });
 

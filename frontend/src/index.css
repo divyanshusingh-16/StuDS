@@ -3,16 +3,389 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 @theme {
-  --font-sans: "Inter", system-ui, sans-serif;
+  --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+html {
+  font-size: 16px;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
 }
 
 body {
-  background-color: #ffffff;
-  color: #171717;
+  background-color: #f8f8f7;
+  color: #1a202c;
   font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  line-height: 1.6;
+  min-height: 100vh;
 }
 
 .dark body {
-  background-color: #0f1012;
+  background-color: #0d0f12;
   color: #ededed;
+}
+
+/* =========================================================
+   TRANSITION UTILITIES
+   Consistent durations across all interactive elements.
+   prefers-reduced-motion: collapse transitions to instant.
+   ========================================================= */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* =========================================================
+   FOCUS INDICATORS
+   Visible, accessible keyboard-focus ring on all interactive
+   elements. Uses :focus-visible so mouse users are unaffected.
+   ========================================================= */
+:focus-visible {
+  outline: 2px solid #3b5bdb;
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+.dark :focus-visible {
+  outline-color: #748ffc;
+}
+
+/* =========================================================
+   CUSTOM SCROLLBARS
+   ========================================================= */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.4);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(100, 116, 139, 0.65);
+}
+.dark ::-webkit-scrollbar-thumb {
+  background: rgba(71, 85, 105, 0.45);
+}
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: rgba(100, 116, 139, 0.65);
+}
+
+/* =========================================================
+   SIDEBAR SUBJECT BUTTON — hover lift
+   Applied via .sidebar-subject-btn utility class.
+   ========================================================= */
+.sidebar-subject-btn {
+  transition: background-color 150ms ease, border-color 150ms ease,
+    color 150ms ease, box-shadow 150ms ease, transform 150ms ease;
+  will-change: transform;
+}
+.sidebar-subject-btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+.sidebar-subject-btn:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+/* =========================================================
+   SUBJECT CARD — hover lift (main grid cards)
+   Applied via .subject-card utility class.
+   ========================================================= */
+.subject-card {
+  transition: border-color 160ms ease, box-shadow 160ms ease,
+    transform 160ms ease, background-color 160ms ease;
+  will-change: transform, box-shadow;
+}
+.subject-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+}
+.dark .subject-card:hover {
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+}
+.subject-card:active {
+  transform: translateY(0);
+  box-shadow: none;
+}
+
+/* =========================================================
+   STUDY RESOURCE CARDS — restrained hover
+   Applied via .resource-card utility class.
+   ========================================================= */
+.resource-card {
+  transition: border-color 150ms ease, background-color 150ms ease,
+    box-shadow 150ms ease;
+}
+.resource-card:hover {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+}
+.dark .resource-card:hover {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+}
+
+/* =========================================================
+   CHAPTER CARD (workspace grid) — hover background fill
+   Applied via .chapter-card utility class.
+   ========================================================= */
+.chapter-card {
+  transition: border-color 150ms ease, background-color 150ms ease;
+}
+
+/* =========================================================
+   PYQ CARD — consistent with chapter cards
+   Applied via .pyq-card utility class.
+   ========================================================= */
+.pyq-card {
+  transition: border-color 160ms ease, background-color 160ms ease,
+    box-shadow 160ms ease, transform 160ms ease;
+}
+.pyq-card:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 3px 12px rgba(0, 0, 0, 0.07);
+}
+.dark .pyq-card:hover {
+  box-shadow: 0 3px 12px rgba(0, 0, 0, 0.28);
+}
+.pyq-card:active {
+  transform: translateY(0);
+}
+
+/* =========================================================
+   TAB UNDERLINE HOVER — chapter content tabs
+   Applied via .tab-btn utility class.
+   ========================================================= */
+.tab-btn {
+  transition: color 140ms ease, border-color 140ms ease;
+  position: relative;
+}
+
+/* =========================================================
+   QUIZ OPTION LABEL — smooth border + bg transition
+   ========================================================= */
+.quiz-option {
+  transition: border-color 140ms ease, background-color 140ms ease,
+    color 140ms ease, box-shadow 140ms ease;
+}
+.quiz-option:hover:not(.quiz-option--chosen) {
+  box-shadow: 0 0 0 1px rgba(59, 91, 219, 0.2);
+}
+
+/* =========================================================
+   INLINE BUTTON TRANSITIONS — catches any button not
+   covered by the specific utility classes above.
+   ========================================================= */
+button,
+a[href] {
+  transition-property: color, background-color, border-color, box-shadow,
+    opacity, transform;
+  transition-duration: 140ms;
+  transition-timing-function: ease;
+}
+
+/* =========================================================
+   MARKDOWN CONTENT — Academic Typography
+   Light-mode colours improved for ≥4.5:1 contrast ratio.
+   ========================================================= */
+.markdown-content {
+  font-size: 1.0625rem; /* ~17px */
+  line-height: 1.7;
+  color: #1e293b; /* 13.5:1 on white */
+}
+
+.dark .markdown-content {
+  color: #e2e8f0;
+}
+
+.markdown-content h1 {
+  font-size: 1.875rem;
+  font-weight: 700;
+  line-height: 1.3;
+  margin-top: 2rem;
+  margin-bottom: 1rem;
+  color: #0f172a;
+}
+.dark .markdown-content h1 {
+  color: #f8fafc;
+}
+
+.markdown-content h2 {
+  font-size: 1.4375rem;
+  font-weight: 700;
+  line-height: 1.35;
+  margin-top: 1.75rem;
+  margin-bottom: 0.875rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid #cbd5e1;
+  color: #0f172a;
+}
+.dark .markdown-content h2 {
+  border-color: #334155;
+  color: #f8fafc;
+}
+
+.markdown-content h3 {
+  font-size: 1.1875rem;
+  font-weight: 600;
+  line-height: 1.4;
+  margin-top: 1.5rem;
+  margin-bottom: 0.625rem;
+  color: #1e293b;
+}
+.dark .markdown-content h3 {
+  color: #f1f5f9;
+}
+
+.markdown-content h4 {
+  font-size: 1.0625rem;
+  font-weight: 600;
+  margin-top: 1.25rem;
+  margin-bottom: 0.5rem;
+  color: #334155; /* 7.6:1 on white */
+}
+.dark .markdown-content h4 {
+  color: #cbd5e1;
+}
+
+.markdown-content p {
+  margin: 1.125rem 0;
+  line-height: 1.7;
+}
+
+.markdown-content ul,
+.markdown-content ol {
+  margin: 1.125rem 0;
+  padding-left: 1.75rem;
+}
+.markdown-content ul {
+  list-style-type: disc;
+}
+.markdown-content ol {
+  list-style-type: decimal;
+}
+.markdown-content li {
+  margin: 0.5rem 0;
+  line-height: 1.65;
+}
+
+/* Responsive Table Wrapper */
+.markdown-content table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1.5rem 0;
+  font-size: 0.9375rem;
+  line-height: 1.55;
+  display: table;
+  overflow-x: auto;
+}
+
+@media (max-width: 768px) {
+  .markdown-content table {
+    display: block;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
+.markdown-content th,
+.markdown-content td {
+  border: 1px solid #94a3b8; /* improved from #cbd5e1 — 3.5:1 on white */
+  padding: 0.75rem 1rem;
+  text-align: left;
+  vertical-align: top;
+}
+
+.markdown-content th {
+  background-color: #f1f5f9;
+  font-weight: 600;
+  color: #0f172a;
+  white-space: nowrap;
+}
+
+.markdown-content tr:nth-child(even) {
+  background-color: #f8fafc;
+}
+
+.dark .markdown-content th,
+.dark .markdown-content td {
+  border-color: #334155;
+}
+.dark .markdown-content th {
+  background-color: #1e293b;
+  color: #f8fafc;
+}
+.dark .markdown-content tr:nth-child(even) {
+  background-color: #141b26;
+}
+
+.markdown-content blockquote {
+  border-left: 4px solid #3b5bdb;
+  padding: 0.75rem 1.25rem;
+  margin: 1.25rem 0;
+  background-color: #f0f4ff;
+  border-radius: 0 0.5rem 0.5rem 0;
+  font-size: 1rem;
+  color: #2d3748; /* 9.0:1 on #f0f4ff */
+}
+
+.dark .markdown-content blockquote {
+  background-color: #161b26;
+  border-left-color: #748ffc;
+  color: #cbd5e1;
+}
+
+.markdown-content pre {
+  background-color: #0b0f17;
+  color: #f1f5f9;
+  padding: 1.25rem 1.5rem;
+  border-radius: 0.625rem;
+  overflow-x: auto;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+    "Liberation Mono", "Courier New", monospace;
+  font-size: 0.875rem;
+  line-height: 1.6;
+  margin: 1.5rem 0;
+  border: 1px solid #1e293b;
+}
+
+.markdown-content code:not(pre code) {
+  background-color: #eef2f7;
+  color: #1e293b;
+  padding: 0.1875rem 0.4375rem;
+  border-radius: 0.3125rem;
+  font-size: 0.9em;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  border: 1px solid #cbd5e1;
+}
+
+.dark .markdown-content code:not(pre code) {
+  background-color: #1e2533;
+  color: #93c5fd;
+  border-color: #2d3748;
+}
+
+/* =========================================================
+   LOADING SPINNER — used in quiz and content loading
+   ========================================================= */
+.spin {
+  animation: spin 0.75s linear infinite;
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .spin {
+    animation: none;
+  }
 }

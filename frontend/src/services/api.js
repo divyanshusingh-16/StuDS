@@ -111,6 +111,38 @@ export const uploadPdfFile = async (file) => {
   return res.json();
 };
 
+export const uploadNotesPdf = async (file, oldPublicId = '', oldFileUrl = '') => {
+  const formData = new FormData();
+  formData.append('file', file);
+  if (oldPublicId) formData.append('oldPublicId', oldPublicId);
+  if (oldFileUrl) formData.append('oldFileUrl', oldFileUrl);
+  
+  const res = await apiFetch('/admin/upload-notes-pdf', {
+    method: 'POST',
+    body: formData,
+  });
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({}));
+    throw new Error(errorData.error || 'Failed to upload notes PDF');
+  }
+  return res.json();
+};
+
+export const uploadDocumentFile = async (file) => {
+  const formData = new FormData();
+  formData.append('file', file);
+  
+  const res = await apiFetch('/admin/upload-document', {
+    method: 'POST',
+    body: formData,
+  });
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({}));
+    throw new Error(errorData.error || 'Failed to upload document');
+  }
+  return res.json();
+};
+
 export const loginAdmin = async (email, password) => {
   const res = await apiFetch('/auth/login', {
     method: 'POST',
@@ -153,4 +185,73 @@ export const generateAiSummary = async (chapterContentMarkdown) => {
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data.error || 'AI summary generation failed');
   return data.summary;
+};
+
+export const extractPdfText = async (chapterId, noteId) => {
+  const res = await apiFetch('/admin/extract-pdf-text', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ chapterId, noteId }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || 'PDF text extraction failed');
+  return data;
+};
+
+export const cleanExtractedText = async (chapterId, noteId, rawText = undefined) => {
+  const res = await apiFetch('/admin/clean-extracted-text', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ chapterId, noteId, rawText }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || 'Notes cleaning failed');
+  return data;
+};
+
+export const fetchStudyResources = async (chapterId) => {
+  const res = await apiFetch(`/admin/content/${chapterId}/study-resources`);
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || 'Failed to fetch study resources');
+  return data;
+};
+
+export const generateStudyResources = async (chapterId, forceRegenerate = false, noteId = undefined) => {
+  const res = await apiFetch(`/admin/content/${chapterId}/study-resources/generate`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ chapterId, forceRegenerate, noteId }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || 'Failed to generate study resources');
+  return data;
+};
+
+export const updateStudyResources = async (chapterId, payload) => {
+  const res = await apiFetch(`/admin/content/${chapterId}/study-resources`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || 'Failed to update study resources');
+  return data;
+};
+
+export const fetchQuizAttempt = async (chapterId) => {
+  const res = await apiFetch(`/quiz/${chapterId}/attempt`);
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || 'Failed to start quiz attempt');
+  return data;
+};
+
+export const submitQuizAnswers = async (chapterId, attemptId, answers) => {
+  const res = await apiFetch(`/quiz/${chapterId}/submit`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ attemptId, answers }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || 'Failed to submit quiz');
+  return data;
 };

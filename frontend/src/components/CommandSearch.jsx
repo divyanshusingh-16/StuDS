@@ -96,54 +96,88 @@ export default function CommandSearch({ onNavigate }) {
   };
 
   return (
+    /* Backdrop */
     <div 
-      className="fixed inset-0 z-50 flex items-start justify-center pt-32 bg-slate-950/40 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-start justify-center pt-28 sm:pt-32 bg-neutral-950/40 dark:bg-black/65 backdrop-blur-[2px]"
       onClick={() => setIsOpen(false)}
+      role="dialog"
+      aria-modal="true"
+      aria-label="Command Palette"
     >
       <div 
-        className="w-full max-w-2xl bg-slate-900 border border-slate-700 overflow-hidden flex flex-col shadow-none rounded-lg"
+        className="w-full max-w-2xl mx-4 bg-white dark:bg-[#1c1f26] border border-neutral-200 dark:border-[#2e3140] overflow-hidden flex flex-col shadow-xl rounded-xl"
         onClick={e => e.stopPropagation()}
       >
-        <div className="flex items-center px-4 py-3 border-b border-slate-700 bg-slate-900">
-          <svg className="w-5 h-5 text-slate-400 mr-3 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+        {/* Search Input */}
+        <div className="flex items-center px-4 py-3.5 border-b border-neutral-200 dark:border-[#2a2d38]">
+          <svg 
+            className="w-4.5 h-4.5 text-neutral-400 dark:text-neutral-500 mr-3 shrink-0" 
+            fill="none" 
+            stroke="currentColor" 
+            viewBox="0 0 24 24"
+            aria-hidden="true"
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+          </svg>
           <input 
             ref={inputRef}
             type="text"
             placeholder="Search notes, chapters, past papers..."
             value={query}
             onChange={e => setQuery(e.target.value)}
-            className="flex-1 bg-transparent border-none focus:outline-none text-white text-base placeholder-slate-500 font-medium"
+            className="flex-1 bg-transparent border-none focus:outline-none text-neutral-900 dark:text-white text-sm sm:text-base placeholder-neutral-400 dark:placeholder-neutral-500 font-medium"
+            aria-label="Search query"
+            autoComplete="off"
+            spellCheck={false}
           />
-          <kbd className="hidden sm:inline-block px-1.5 py-0.5 text-[10px] font-bold tracking-wider uppercase text-slate-400 bg-slate-800 border border-slate-700 rounded ml-3">ESC</kbd>
+          <kbd className="hidden sm:inline-block px-1.5 py-0.5 text-[10px] font-bold tracking-wider uppercase text-neutral-500 dark:text-neutral-400 bg-neutral-100 dark:bg-[#252830] border border-neutral-200 dark:border-[#363a48] rounded ml-3 font-mono">
+            ESC
+          </kbd>
         </div>
 
-        {(query.trim() !== '') && (
-          <div className="max-h-[60vh] overflow-y-auto bg-slate-900">
-            {loading && <div className="px-4 py-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">Searching database...</div>}
+        {query.trim() !== '' && (
+          <div className="max-h-[60vh] overflow-y-auto bg-white dark:bg-[#1c1f26]">
+            {loading && (
+              <div className="px-4 py-4 text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">
+                Searching…
+              </div>
+            )}
             
             {!loading && results.length === 0 && (
-              <div className="px-4 py-6 text-sm text-slate-400 text-center">No results found for "{query}"</div>
+              <div className="px-4 py-8 text-sm text-neutral-500 dark:text-neutral-400 text-center">
+                No results for &ldquo;<span className="font-semibold text-neutral-700 dark:text-neutral-200">{query}</span>&rdquo;
+              </div>
             )}
 
             {!loading && results.length > 0 && (
-              <ul ref={resultsRef} className="py-2">
+              <ul ref={resultsRef} className="py-1.5" role="listbox">
                 {results.map((item, idx) => (
                   <li 
                     key={idx}
-                    className={`px-4 py-3 cursor-pointer flex flex-col gap-1.5 transition-none border-l-[3px] ${selectedIndex === idx ? 'bg-slate-800 border-white' : 'border-transparent hover:bg-slate-800/50'}`}
+                    role="option"
+                    aria-selected={selectedIndex === idx}
+                    className={`px-4 py-3 cursor-pointer flex flex-col gap-1.5 border-l-[3px] ${
+                      selectedIndex === idx 
+                        ? 'bg-neutral-100 dark:bg-[#252830] border-neutral-900 dark:border-neutral-300' 
+                        : 'border-transparent hover:bg-neutral-50 dark:hover:bg-[#20232a]'
+                    }`}
                     onClick={() => handleSelect(item)}
                     onMouseEnter={() => setSelectedIndex(idx)}
                   >
                     <div className="flex justify-between items-start gap-4">
-                      <span className={`text-sm font-semibold truncate ${selectedIndex === idx ? 'text-white' : 'text-slate-200'}`}>
+                      <span className={`text-sm font-semibold truncate ${
+                        selectedIndex === idx 
+                          ? 'text-neutral-900 dark:text-white' 
+                          : 'text-neutral-700 dark:text-neutral-200'
+                      }`}>
                         {item.title}
                       </span>
-                      <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 shrink-0 bg-slate-800 border border-slate-700 px-2 py-0.5 rounded">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-500 dark:text-neutral-400 shrink-0 bg-neutral-100 dark:bg-[#282c36] border border-neutral-200 dark:border-[#363a48] px-2 py-0.5 rounded font-mono">
                         {item.parentContext}
                       </span>
                     </div>
                     {item.snippet && (
-                      <span className="text-xs text-slate-400 line-clamp-2 leading-relaxed font-mono">
+                      <span className="text-xs text-neutral-500 dark:text-neutral-400 line-clamp-2 leading-relaxed font-mono">
                         {item.snippet}
                       </span>
                     )}
@@ -151,6 +185,25 @@ export default function CommandSearch({ onNavigate }) {
                 ))}
               </ul>
             )}
+          </div>
+        )}
+
+        {/* Footer hint */}
+        {query.trim() === '' && (
+          <div className="px-4 py-3 flex items-center gap-4 text-xs text-neutral-400 dark:text-neutral-500 border-t border-neutral-100 dark:border-[#252830]">
+            <span className="flex items-center gap-1.5">
+              <kbd className="px-1 py-0.5 font-mono bg-neutral-100 dark:bg-[#252830] border border-neutral-200 dark:border-[#363a48] rounded text-[10px]">↑</kbd>
+              <kbd className="px-1 py-0.5 font-mono bg-neutral-100 dark:bg-[#252830] border border-neutral-200 dark:border-[#363a48] rounded text-[10px]">↓</kbd>
+              Navigate
+            </span>
+            <span className="flex items-center gap-1.5">
+              <kbd className="px-1.5 py-0.5 font-mono bg-neutral-100 dark:bg-[#252830] border border-neutral-200 dark:border-[#363a48] rounded text-[10px]">↵</kbd>
+              Select
+            </span>
+            <span className="flex items-center gap-1.5">
+              <kbd className="px-1.5 py-0.5 font-mono bg-neutral-100 dark:bg-[#252830] border border-neutral-200 dark:border-[#363a48] rounded text-[10px]">Esc</kbd>
+              Close
+            </span>
           </div>
         )}
       </div>
