@@ -238,6 +238,56 @@ export const updateStudyResources = async (chapterId, payload) => {
   return data;
 };
 
+export const fetchPipelineStatus = async (chapterId) => {
+  const res = await apiFetch(`/admin/content/${chapterId}/pipeline/status`);
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || 'Failed to fetch pipeline status');
+  return data;
+};
+
+export const runPipelineGenerate = async (chapterId, payload = {}) => {
+  const res = await apiFetch(`/admin/content/${chapterId}/pipeline/generate`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || 'Pipeline generation failed');
+  return data;
+};
+
+export const runPipelineRetry = async (chapterId, noteId = undefined) => {
+  const res = await apiFetch(`/admin/content/${chapterId}/pipeline/retry`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ noteId }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || 'Pipeline retry failed');
+  return data;
+};
+
+export const updateDraftResources = async (chapterId, draftPayload) => {
+  const res = await apiFetch(`/admin/content/${chapterId}/draft`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(draftPayload),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || 'Failed to save draft');
+  return data;
+};
+
+export const publishPipelineResources = async (chapterId) => {
+  const res = await apiFetch(`/admin/content/${chapterId}/pipeline/publish`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || 'Failed to publish resources');
+  return data;
+};
+
 export const fetchQuizAttempt = async (chapterId) => {
   const res = await apiFetch(`/quiz/${chapterId}/attempt`);
   const data = await res.json().catch(() => ({}));
@@ -255,3 +305,4 @@ export const submitQuizAnswers = async (chapterId, attemptId, answers) => {
   if (!res.ok) throw new Error(data.error || 'Failed to submit quiz');
   return data;
 };
+

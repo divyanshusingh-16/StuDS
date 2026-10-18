@@ -177,6 +177,15 @@ router.get('/content/:chapterId', async (req, res) => {
         options: q.options
       }));
     }
+
+    // Critical Rule: Never expose draft or staging resources to students
+    delete content.draftStudyResources;
+    delete content.draftQuizQuestions;
+    delete content.draftFullNotesMarkdown;
+    delete content.extractedText;
+    delete content.extractedChunks;
+    delete content.processingError;
+    delete content.shortfallNotice;
     
     res.json(content);
   } catch (error) {

@@ -35,14 +35,17 @@ const SYLLABUS_TOPICS_CH1_1 = [
 /**
  * Main cleaning function
  * @param {string} rawText - Raw text extracted from PDF
+ * @param {object} options - Optional context { chapterName, subjectName, unitName, syllabusTopics }
  * @returns {object} { cleanedMarkdown, stats, syllabusVerification }
  */
-function cleanExtractedNotes(rawText) {
+function cleanExtractedNotes(rawText, options = {}) {
+  const { chapterName, subjectName, unitName, syllabusTopics } = options;
+
   if (!rawText || typeof rawText !== 'string') {
     return {
       cleanedMarkdown: '',
       stats: { originalLength: 0, cleanedLength: 0, wordsCount: 0, sectionsFound: 0, tablesCount: 0, diagramsCount: 0 },
-      syllabusVerification: { totalTopics: SYLLABUS_TOPICS_CH1_1.length, coveredCount: 0, coveragePercent: 0, topicResults: [] }
+      syllabusVerification: { totalTopics: (syllabusTopics || SYLLABUS_TOPICS_CH1_1).length, coveredCount: 0, coveragePercent: 0, topicResults: [] }
     };
   }
 
@@ -55,11 +58,23 @@ function cleanExtractedNotes(rawText) {
   text = text.replace(/--\s*\d+\s*of\s*\d+\s*--/gi, '');
   text = text.replace(/Computer Networks\s*\|\s*Unit 1\s*\|\s*Chapter 1\.1[^\n]*/gi, '');
   text = text.replace(/STUDS\s*\|\s*Study Notes Page\s*\d+/gi, '');
+  text = text.replace(/^Page\s+\d+\s+of\s+\d+$/gim, '');
+  text = text.replace(/^Page\s+\d+$/gim, '');
 
-  // STEP 3: Handle Title Page / Cover Block cleanly up to "Chapter Overview"
-  text = text.replace(/^[\s\S]*?(?=Chapter Overview)/i, () => {
-    return `# Computer Networks — Unit 1: Introduction to Data Communication & Physical Layer\n\n## Chapter 1.1: Introduction to Data Communication & Computer Networks\n\n> 🎓 **Academic Reference Notes**: University-level study material for semester revision and examination preparation.\n> \n> **Key Syllabus Areas**: Data Communication • Uses of Networks • LAN / MAN / WAN • Topologies • Hardware Devices • Network Software & Protocols • Service Primitives • OSI 7-Layer Model • TCP/IP 4-Layer Model\n\n---\n\n`;
-  });
+  // STEP 3: Handle Title Page / Cover Block cleanly
+  if (/Chapter Overview/i.test(text)) {
+    text = text.replace(/^[\s\S]*?(?=Chapter Overview)/i, () => {
+      const subj = subjectName || 'Computer Networks';
+      const unit = unitName || 'Unit 1: Introduction to Data Communication & Physical Layer';
+      const chap = chapterName || 'Chapter 1.1: Introduction to Data Communication & Computer Networks';
+      return `# ${subj} — ${unit}\n\n## ${chap}\n\n> 🎓 **Academic Reference Notes**: University-level study material for semester revision and examination preparation.\n\n---\n\n`;
+    });
+  } else if (chapterName || subjectName) {
+    const subj = subjectName || 'Academic Course Material';
+    const chap = chapterName || 'Chapter Notes';
+    const header = `# ${subj}${unitName ? ' — ' + unitName : ''}\n\n## ${chap}\n\n---\n\n`;
+    text = header + text;
+  }
 
   // STEP 4: Format ASCII Diagrams inside ```text ... ``` code blocks
   text = formatAsciiDiagrams(text);
@@ -80,7 +95,8 @@ function cleanExtractedNotes(rawText) {
   text = text.replace(/\n{4,}/g, '\n\n\n');
 
   // STEP 10: Validation and Syllabus Check
-  const syllabusVerification = verifySyllabusCoverage(text);
+  const effectiveSyllabus = Array.isArray(syllabusTopics) && syllabusTopics.length > 0 ? syllabusTopics : SYLLABUS_TOPICS_CH1_1;
+  const syllabusVerification = verifySyllabusCoverage(text, effectiveSyllabus);
   const stats = {
     originalLength,
     cleanedLength: text.length,
@@ -841,29 +857,34 @@ function countSectionsFound(text) {
 }
 
 /**
- * Verifies that all 19 syllabus topics of Chapter 1.1 are covered in the cleaned notes
+ * Verifies that syllabus topics are covered in the cleaned notes
  */
-function verifySyllabusCoverage(text) {
+function verifySyllabusCoverage(text, syllabus = SYLLABUS_TOPICS_CH1_1) {
   const lower = text.toLowerCase();
   let coveredCount = 0;
   const topicResults = [];
+  const topicsList = Array.isArray(syllabus) && syllabus.length > 0 ? syllabus : SYLLABUS_TOPICS_CH1_1;
 
-  SYLLABUS_TOPICS_CH1_1.forEach(topic => {
-    const matchedKeyword = topic.keywords.find(kw => lower.includes(kw.toLowerCase()));
+  topicsList.forEach((topic, idx) => {
+    const keywords = topic.keywords || [topic.title || topic];
+    const matchedKeyword = keywords.find(kw => typeof kw === 'string' && lower.includes(kw.toLowerCase()));
     const isCovered = Boolean(matchedKeyword);
     if (isCovered) coveredCount++;
     topicResults.push({
-      id: topic.id,
-      title: topic.title,
+      id: topic.id || `topic_${idx}`,
+      title: topic.title || String(topic),
       isCovered,
       matchedKeyword: matchedKeyword || null
     });
   });
 
+  const totalTopics = topicsList.length;
+  const coveragePercent = totalTopics > 0 ? Math.round((coveredCount / totalTopics) * 100) : 100;
+
   return {
-    totalTopics: SYLLABUS_TOPICS_CH1_1.length,
+    totalTopics,
     coveredCount,
-    coveragePercent: Math.round((coveredCount / SYLLABUS_TOPICS_CH1_1.length) * 100),
+    coveragePercent,
     topicResults
   };
 }

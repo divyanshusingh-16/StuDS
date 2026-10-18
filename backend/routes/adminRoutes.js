@@ -12,6 +12,7 @@ const { requireAuth, requireRole, requireTrustedOrigin } = require('../middlewar
 const { generateChapterSummary } = require('../services/aiService');
 const { cleanExtractedNotes, verifySyllabusCoverage } = require('../services/noteCleanerService');
 const { generateChapterStudyResources } = require('../services/studyResourcesService');
+const pipelineService = require('../services/pipelineService');
 const mammoth = require('mammoth');
 const TurndownService = require('turndown');
 let pdfParseModule;
@@ -277,94 +278,16 @@ router.post('/generate-summary', requireRole('content_admin', 'super_admin'), as
   }
 });
 
-// POST /extract-pdf-text — Server-side PDF text extraction (admin only, manual trigger)
+// POST /extract-pdf-text — Server-side PDF text extraction & validation (Stage 2 & 3)
 router.post('/extract-pdf-text', requireRole('content_admin', 'super_admin'), async (req, res) => {
   const { chapterId, noteId } = req.body;
   if (!chapterId || !noteId) {
     return res.status(400).json({ error: 'chapterId and noteId are required.' });
   }
 
-  if (!pdfParseModule) {
-    return res.status(501).json({ error: 'PDF text extraction is not available (pdf-parse not installed).' });
-  }
-
   try {
-    const content = await Content.findOne({ chapterId });
-    if (!content) return res.status(404).json({ error: 'Chapter content not found.' });
-
-    const note = content.notes.id(noteId);
-    if (!note) return res.status(404).json({ error: 'Note not found.' });
-
-    const pdfUrl = note.fileUrl || note.originalDocumentUrl;
-    if (!pdfUrl) {
-      return res.status(400).json({ error: 'This note has no attached PDF to extract text from.' });
-    }
-
-    // Fetch the PDF buffer (supports both local /uploads/ and Cloudinary URLs)
-    let pdfBuffer;
-    if (pdfUrl.includes('/uploads/')) {
-      // Local file
-      const fileName = path.basename(pdfUrl.split('?')[0]);
-      const filePath = path.join(__dirname, '..', 'uploads', fileName);
-      if (!fs.existsSync(filePath)) {
-        return res.status(404).json({ error: 'Local PDF file not found on server. It may have been deleted.' });
-      }
-      pdfBuffer = fs.readFileSync(filePath);
-    } else {
-      // Remote URL (Cloudinary, etc.)
-      const fetchRes = await fetch(pdfUrl);
-      if (!fetchRes.ok) {
-        return res.status(502).json({ error: `Failed to download PDF for extraction (HTTP ${fetchRes.status}).` });
-      }
-      const arrayBuf = await fetchRes.arrayBuffer();
-      pdfBuffer = Buffer.from(arrayBuf);
-    }
-
-    let rawText = '';
-    try {
-      rawText = await extractTextFromPdfBuffer(pdfBuffer);
-    } catch (parseErr) {
-      return res.status(422).json({
-        error: 'PDF parsing failed. The file may be corrupted or encrypted.',
-        detail: parseErr.message
-      });
-    }
-
-    if (!rawText || rawText.length < 20) {
-      // Likely a scanned / image-only PDF
-      note.textExtractionStatus = 'no_text';
-      note.rawExtractedText = '';
-      note.extractedMarkdown = '';
-      await content.save();
-      return res.json({
-        success: true,
-        status: 'no_text',
-        message: 'No extractable text found. This PDF appears to be a scanned image. OCR is not supported in this phase.',
-        rawExtractedText: '',
-        extractedMarkdown: ''
-      });
-    }
-
-    // Run the note cleaner service to produce clean, well-formatted Markdown
-    const cleanResult = cleanExtractedNotes(rawText);
-    const extractedMarkdown = cleanResult.cleanedMarkdown;
-
-    // Persist raw extracted text and cleaned markdown into the note
-    note.rawExtractedText = rawText;
-    note.extractedMarkdown = extractedMarkdown;
-    note.textExtractionStatus = 'success';
-    await content.save();
-
-    return res.json({
-      success: true,
-      status: 'success',
-      rawExtractedText: rawText,
-      extractedMarkdown,
-      charCount: rawText.length,
-      cleanCharCount: extractedMarkdown.length,
-      stats: cleanResult.stats,
-      syllabusVerification: cleanResult.syllabusVerification
-    });
+    const result = await pipelineService.extractNoteText(chapterId, noteId);
+    return res.json(result);
   } catch (error) {
     console.error('[PDF Extract]', error.message);
     return res.status(500).json({ error: error.message });
@@ -390,7 +313,12 @@ router.post('/clean-extracted-text', requireRole('content_admin', 'super_admin')
       return res.status(400).json({ error: 'No raw text found to clean. Please extract text from the PDF first.' });
     }
 
-    const cleanResult = cleanExtractedNotes(raw);
+    const { chapterTitle, unitName, subjectName } = await pipelineService.getAcademicContext(chapterId);
+    const cleanResult = cleanExtractedNotes(raw, {
+      chapterName: chapterTitle,
+      subjectName,
+      unitName
+    });
 
     if (saveToNote !== false) {
       note.extractedMarkdown = cleanResult.cleanedMarkdown;
@@ -410,9 +338,80 @@ router.post('/clean-extracted-text', requireRole('content_admin', 'super_admin')
   }
 });
 
-// ==========================================
-// STUDY RESOURCES & 20-MCQ QUIZ ADMIN ROUTES
-// ==========================================
+// ========================================================
+// STUDS SAFE PDF-TO-AI PIPELINE & STUDY RESOURCES ROUTES
+// ========================================================
+
+// GET /content/:chapterId/pipeline/status — Full pipeline, PDF, extraction, draft & published overview
+router.get('/content/:chapterId/pipeline/status', requireRole('content_admin', 'super_admin'), async (req, res) => {
+  try {
+    const { chapterId } = req.params;
+    const status = await pipelineService.getPipelineStatus(chapterId);
+    return res.json(status);
+  } catch (error) {
+    console.error('[Pipeline Status GET]', error.message);
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+// POST /content/:chapterId/pipeline/generate — Generate missing or targeted resources into staging draft
+router.post('/content/:chapterId/pipeline/generate', requireRole('content_admin', 'super_admin'), async (req, res) => {
+  try {
+    const { chapterId } = req.params;
+    const { mode, targets, forceRegenerate, noteId } = req.body;
+    const result = await pipelineService.generateStagingResources(chapterId, {
+      mode: mode || 'missing_only',
+      targets: targets || [],
+      forceRegenerate: Boolean(forceRegenerate),
+      noteId
+    });
+    return res.json(result);
+  } catch (error) {
+    console.error('[Pipeline Generate POST]', error.message);
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+// POST /content/:chapterId/pipeline/retry — Re-attempt generation from existing extracted text
+router.post('/content/:chapterId/pipeline/retry', requireRole('content_admin', 'super_admin'), async (req, res) => {
+  try {
+    const { chapterId } = req.params;
+    const { noteId } = req.body;
+    const result = await pipelineService.generateStagingResources(chapterId, {
+      mode: 'missing_only',
+      forceRegenerate: true,
+      noteId
+    });
+    return res.json(result);
+  } catch (error) {
+    console.error('[Pipeline Retry POST]', error.message);
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+// PUT /content/:chapterId/draft — Persist admin edits to staging draft without publishing
+router.put('/content/:chapterId/draft', requireRole('content_admin', 'super_admin'), async (req, res) => {
+  try {
+    const { chapterId } = req.params;
+    const result = await pipelineService.updateDraftResources(chapterId, req.body);
+    return res.json(result);
+  } catch (error) {
+    console.error('[Pipeline Draft PUT]', error.message);
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+// POST /content/:chapterId/pipeline/publish — Explicit atomic publication of approved draft
+router.post('/content/:chapterId/pipeline/publish', requireRole('content_admin', 'super_admin'), async (req, res) => {
+  try {
+    const { chapterId } = req.params;
+    const result = await pipelineService.publishChapterResources(chapterId, req.auth?.user);
+    return res.json(result);
+  } catch (error) {
+    console.error('[Pipeline Publish POST]', error.message);
+    return res.status(400).json({ error: error.message });
+  }
+});
 
 // GET /content/:chapterId/study-resources — Inspect existing resources & quiz questions
 router.get('/content/:chapterId/study-resources', requireRole('content_admin', 'super_admin'), async (req, res) => {
@@ -423,12 +422,24 @@ router.get('/content/:chapterId/study-resources', requireRole('content_admin', '
       return res.status(404).json({ error: 'Chapter content not found.' });
     }
 
+    const hasPublished = content.studyResources?.status === 'published';
+    const hasDraft = Boolean(content.draftStudyResources || (content.draftQuizQuestions && content.draftQuizQuestions.length > 0));
+
+    // Return published resources as primary, with drafts attached for admin studio review
     return res.json({
       success: true,
       studyResources: content.studyResources || null,
       quizQuestions: content.quizQuestions || [],
       shortNotes: content.shortNotes || [],
-      hasPublishedResources: content.studyResources?.status === 'published'
+      fullNotesMarkdown: content.fullNotesMarkdown || '',
+      draftStudyResources: content.draftStudyResources || null,
+      draftQuizQuestions: content.draftQuizQuestions || [],
+      draftFullNotesMarkdown: content.draftFullNotesMarkdown || '',
+      processingStatus: content.processingStatus || 'idle',
+      processingError: content.processingError || '',
+      shortfallNotice: content.shortfallNotice || null,
+      hasPublishedResources: hasPublished,
+      hasDraftResources: hasDraft
     });
   } catch (error) {
     console.error('[Study Resources GET]', error.message);
@@ -436,173 +447,49 @@ router.get('/content/:chapterId/study-resources', requireRole('content_admin', '
   }
 });
 
-// POST /content/:chapterId/study-resources/generate — Generate resources from cleaned notes
+// POST /content/:chapterId/study-resources/generate — Backward-compatible wrapper
 router.post('/content/:chapterId/study-resources/generate', requireRole('content_admin', 'super_admin'), async (req, res) => {
   const { chapterId } = req.params;
-  const { forceRegenerate, noteId } = req.body;
+  const { forceRegenerate, noteId, mode, targets } = req.body;
 
   try {
-    const content = await Content.findOne({ chapterId });
-    if (!content) {
-      return res.status(404).json({ error: 'Chapter content not found.' });
-    }
-
-    // Safeguard 5: Prevent accidental overwrite of published resources
-    const hasExisting = Boolean(
-      (content.studyResources?.shortNotes && content.studyResources.shortNotes.length > 0) ||
-      (content.quizQuestions && content.quizQuestions.length > 0)
-    );
-
-    if (hasExisting && !forceRegenerate) {
-      return res.status(200).json({
-        success: false,
-        requiresConfirmation: true,
-        message: 'Study resources or quiz questions already exist for this chapter. Confirm to regenerate and overwrite drafts.',
-        existingQuestionCount: content.quizQuestions?.length || 0,
-        status: content.studyResources?.status || 'draft'
-      });
-    }
-
-    // Locate the cleaned markdown source notes
-    let sourceMarkdown = '';
-    if (noteId) {
-      const specificNote = content.notes.id(noteId);
-      if (specificNote) {
-        sourceMarkdown = specificNote.extractedMarkdown || specificNote.content || '';
-      }
-    }
-
-    if (!sourceMarkdown) {
-      const bestNote = content.notes.find(n => n.extractedMarkdown && n.extractedMarkdown.length > 500) ||
-                       content.notes.find(n => n.content && n.content.length > 500) ||
-                       content.notes[0];
-      sourceMarkdown = bestNote?.extractedMarkdown || bestNote?.content || content.fullNotesMarkdown || '';
-    }
-
-    // Generate study resources and 20 MCQs
-    const generated = await generateChapterStudyResources(sourceMarkdown, content.chapterId);
-
-    // Save as draft by default for admin preview and approval
-    content.studyResources = {
-      shortNotes: generated.shortNotes,
-      importantTopics: generated.importantTopics,
-      keyDefinitions: generated.keyDefinitions,
-      examRevisionNotes: generated.examRevisionNotes,
-      status: 'draft',
-      generatedAt: new Date()
-    };
-
-    // Format quiz questions into schema instances with draft status
-    content.quizQuestions = generated.quizQuestions.map(q => ({
-      question: q.question.trim(),
-      options: q.options.map(opt => String(opt).trim()),
-      correctAnswer: String(q.correctAnswer).trim(),
-      explanation: q.explanation ? String(q.explanation).trim() : '',
-      status: 'draft'
-    }));
-
-    await content.save();
-
-    return res.json({
-      success: true,
-      message: 'Generated study resources and 20 MCQs successfully as draft.',
-      studyResources: content.studyResources,
-      quizQuestions: content.quizQuestions,
-      questionCount: content.quizQuestions.length,
-      source: generated.source
+    const result = await pipelineService.generateStagingResources(chapterId, {
+      mode: mode || (forceRegenerate ? 'all' : 'missing_only'),
+      targets: targets || [],
+      forceRegenerate: Boolean(forceRegenerate),
+      noteId
     });
+    return res.json(result);
   } catch (error) {
     console.error('[Study Resources Generate]', error.message);
     return res.status(500).json({ error: error.message });
   }
 });
 
-// PUT /content/:chapterId/study-resources — Admin preview, edit, approval, and publishing
+// PUT /content/:chapterId/study-resources — Backward-compatible wrapper for edit & publishing
 router.put('/content/:chapterId/study-resources', requireRole('content_admin', 'super_admin'), async (req, res) => {
   const { chapterId } = req.params;
-  const { studyResources, quizQuestions, publishAll } = req.body;
+  const { studyResources, quizQuestions, publishAll, draftFullNotesMarkdown } = req.body;
 
   try {
-    const content = await Content.findOne({ chapterId });
-    if (!content) {
-      return res.status(404).json({ error: 'Chapter content not found.' });
+    if (publishAll) {
+      // First update the draft with the submitted values, then publish
+      await pipelineService.updateDraftResources(chapterId, {
+        draftStudyResources: studyResources,
+        draftQuizQuestions: quizQuestions,
+        draftFullNotesMarkdown
+      });
+      const pubResult = await pipelineService.publishChapterResources(chapterId, req.auth?.user);
+      return res.json(pubResult);
+    } else {
+      // Save as draft
+      const draftResult = await pipelineService.updateDraftResources(chapterId, {
+        draftStudyResources: studyResources,
+        draftQuizQuestions: quizQuestions,
+        draftFullNotesMarkdown
+      });
+      return res.json(draftResult);
     }
-
-    // Update study resources if provided
-    if (studyResources) {
-      const current = content.studyResources || {};
-      const newStatus = publishAll ? 'published' : (studyResources.status || current.status || 'draft');
-      
-      content.studyResources = {
-        shortNotes: Array.isArray(studyResources.shortNotes) ? studyResources.shortNotes : current.shortNotes || [],
-        importantTopics: Array.isArray(studyResources.importantTopics) ? studyResources.importantTopics : current.importantTopics || [],
-        keyDefinitions: Array.isArray(studyResources.keyDefinitions) ? studyResources.keyDefinitions : current.keyDefinitions || [],
-        examRevisionNotes: studyResources.examRevisionNotes !== undefined ? studyResources.examRevisionNotes : current.examRevisionNotes || '',
-        status: newStatus,
-        generatedAt: current.generatedAt || new Date()
-      };
-
-      // Sync to content.shortNotes for backward compatibility when published
-      if (newStatus === 'published' && Array.isArray(content.studyResources.shortNotes)) {
-        content.shortNotes = content.studyResources.shortNotes;
-      }
-    }
-
-    // Update quiz questions if provided
-    if (Array.isArray(quizQuestions)) {
-      const questionStatus = publishAll ? 'published' : undefined;
-      const seenQuestions = new Set();
-      const cleanQuestions = [];
-
-      for (const q of quizQuestions) {
-        if (!q.question || !q.question.trim()) continue;
-        const normKey = q.question.trim().toLowerCase();
-        if (seenQuestions.has(normKey)) continue; // Deduplicate questions
-        seenQuestions.add(normKey);
-
-        const options = Array.isArray(q.options) ? q.options.map(o => String(o).trim()) : [];
-        if (options.length !== 4) {
-          return res.status(400).json({ error: `Question "${q.question}" must have exactly 4 options.` });
-        }
-
-        const correctAnswer = String(q.correctAnswer || '').trim();
-        if (!options.includes(correctAnswer)) {
-          return res.status(400).json({ error: `Correct answer "${correctAnswer}" must match one of the 4 options.` });
-        }
-
-        cleanQuestions.push({
-          _id: q._id || undefined,
-          question: q.question.trim(),
-          options,
-          correctAnswer,
-          explanation: q.explanation ? String(q.explanation).trim() : '',
-          status: questionStatus || q.status || 'published'
-        });
-      }
-
-      content.quizQuestions = cleanQuestions;
-
-      // Sync published questions into content.quizData for backward compatibility
-      if (publishAll || cleanQuestions.some(q => q.status === 'published')) {
-        content.quizData = cleanQuestions
-          .filter(q => q.status === 'published')
-          .map(q => ({
-            question: q.question,
-            options: q.options,
-            correctAnswer: q.correctAnswer
-          }));
-      }
-    }
-
-    await content.save();
-
-    return res.json({
-      success: true,
-      message: 'Study resources and quiz questions successfully updated.',
-      studyResources: content.studyResources,
-      quizQuestions: content.quizQuestions,
-      questionCount: content.quizQuestions.length
-    });
   } catch (error) {
     console.error('[Study Resources Update]', error.message);
     return res.status(500).json({ error: error.message });

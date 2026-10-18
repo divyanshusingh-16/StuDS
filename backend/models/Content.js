@@ -33,17 +33,28 @@ const noteSchema = new mongoose.Schema(
     originalDocumentUrl: { type: String },
     originalDocumentName: { type: String },
     // PDF text extraction fields (kept separate from the original PDF)
-    rawExtractedText: { type: String, default: '' },       // Raw text output from pdf-parse
+    rawExtractedText: { type: String, default: '' },       // Raw text output from pdf-parse/OCR
     extractedMarkdown: { type: String, default: '' },      // Formatted Markdown version (for display)
     textExtractionStatus: {
       type: String,
-      enum: ['none', 'pending', 'success', 'no_text', 'failed'],
+      enum: ['none', 'pending', 'extracting', 'success', 'no_text', 'failed'],
       default: 'none'
     },
+    // Structured text chunk storage (prepared for future vector embeddings & RAG doubt solving)
+    extractedChunks: [
+      {
+        chunkIndex: { type: Number },
+        text: { type: String },
+        wordCount: { type: Number }
+      }
+    ],
+    pageCount: { type: Number, default: 0 },
+    charCount: { type: Number, default: 0 },
+    wordCount: { type: Number, default: 0 },
+    processingError: { type: String, default: '' }
   },
   { timestamps: true }
 );
-
 
 const quizDataSchema = new mongoose.Schema(
   {
@@ -79,6 +90,7 @@ const keyDefinitionSchema = new mongoose.Schema(
   {
     term: { type: String, required: true },
     definition: { type: String, required: true },
+    isManuallyEdited: { type: Boolean, default: false },
   },
   { _id: true }
 );
@@ -91,6 +103,11 @@ const studyResourcesSchema = new mongoose.Schema(
     examRevisionNotes: { type: String, default: '' },
     status: { type: String, enum: ['draft', 'published'], default: 'draft' },
     generatedAt: { type: Date, default: Date.now },
+    publishedAt: { type: Date },
+    approvedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    isManuallyEdited: { type: Boolean, default: false },
+    shortfallReason: { type: String, default: '' },
+    sourceLimitations: { type: [String], default: [] },
   },
   { _id: false }
 );
@@ -121,10 +138,22 @@ const quizQuestionSchema = new mongoose.Schema(
       type: String,
       default: '',
     },
+    difficulty: {
+      type: String,
+      enum: ['easy', 'medium', 'hard'],
+      default: 'medium',
+    },
+    chapterId: {
+      type: String,
+    },
     status: {
       type: String,
       enum: ['draft', 'published'],
       default: 'draft',
+    },
+    isManuallyEdited: {
+      type: Boolean,
+      default: false,
     },
   },
   { _id: true, timestamps: true }
@@ -138,6 +167,7 @@ const contentSchema = new mongoose.Schema(
       unique: true,
       index: true,
     },
+    // Published Core Content
     fullNotesMarkdown: {
       type: String,
       default: '',
@@ -169,6 +199,40 @@ const contentSchema = new mongoose.Schema(
     notes: {
       type: [noteSchema],
       default: [],
+    },
+
+    // Separate Staging / Draft Resources (Requirement 3: Never overwrite published content during generation)
+    draftStudyResources: {
+      type: studyResourcesSchema,
+      default: null,
+    },
+    draftQuizQuestions: {
+      type: [quizQuestionSchema],
+      default: [],
+    },
+    draftFullNotesMarkdown: {
+      type: String,
+      default: '',
+    },
+
+    // Processing Pipeline & Safety Tracking (Requirement 4)
+    processingStatus: {
+      type: String,
+      enum: ['idle', 'uploading', 'uploaded', 'extracting', 'extracted', 'generating', 'draft_ready', 'published', 'failed'],
+      default: 'idle',
+    },
+    processingError: {
+      type: String,
+      default: '',
+    },
+    lastProcessingAt: {
+      type: Date,
+    },
+    shortfallNotice: {
+      hasShortfall: { type: Boolean, default: false },
+      expectedCount: { type: Number, default: 20 },
+      actualCount: { type: Number, default: 0 },
+      reason: { type: String, default: '' },
     },
   },
   {

@@ -1,5 +1,30 @@
 import { useState, useEffect, useRef } from 'react';
-import { fetchSubjectsBySemester, fetchUnitsBySubject, upsertContent, uploadPdfFile, uploadNotesPdf, loginAdmin, getCurrentUser, logoutAdmin, generateAiSummary, fetchNotes, createNote, updateNote, deleteNote, uploadDocumentFile, extractPdfText, cleanExtractedText, fetchStudyResources, generateStudyResources, updateStudyResources } from '../services/api';
+import {
+  fetchSubjectsBySemester,
+  fetchUnitsBySubject,
+  upsertContent,
+  uploadPdfFile,
+  uploadNotesPdf,
+  loginAdmin,
+  getCurrentUser,
+  logoutAdmin,
+  generateAiSummary,
+  fetchNotes,
+  createNote,
+  updateNote,
+  deleteNote,
+  uploadDocumentFile,
+  extractPdfText,
+  cleanExtractedText,
+  fetchStudyResources,
+  generateStudyResources,
+  updateStudyResources,
+  fetchPipelineStatus,
+  runPipelineGenerate,
+  runPipelineRetry,
+  updateDraftResources,
+  publishPipelineResources
+} from '../services/api';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
@@ -106,14 +131,19 @@ export default function AdminDashboard() {
   // AI Chapter Study Resources & 20-MCQ Question Bank Studio State
   const [studyResources, setStudyResources] = useState(null);
   const [quizQuestions, setQuizQuestions] = useState([]);
+  const [draftFullNotesMarkdown, setDraftFullNotesMarkdown] = useState('');
+  const [pipelineStatus, setPipelineStatus] = useState(null);
   const [isGeneratingResources, setIsGeneratingResources] = useState(false);
   const [isSavingResources, setIsSavingResources] = useState(false);
-  const [resourceStudioTab, setResourceStudioTab] = useState('quiz'); // 'quiz' | 'shortNotes' | 'topics' | 'definitions' | 'revision'
+  const [resourceStudioTab, setResourceStudioTab] = useState('quiz'); // 'quiz' | 'shortNotes' | 'topics' | 'definitions' | 'revision' | 'fullNotes'
   const [resourceFeedback, setResourceFeedback] = useState(null);
   const [isEditingRevisionNotes, setIsEditingRevisionNotes] = useState(false);
+  const [isEditingFullNotes, setIsEditingFullNotes] = useState(false);
   const [newTopicInput, setNewTopicInput] = useState('');
   const [newDefTermInput, setNewDefTermInput] = useState('');
   const [newDefDescInput, setNewDefDescInput] = useState('');
+  const [showRegenModal, setShowRegenModal] = useState(false);
+  const [customGenTargets, setCustomGenTargets] = useState(['fullNotes', 'shortNotes', 'importantTopics', 'keyDefinitions', 'examRevisionNotes', 'quizQuestions']);
 
   useEffect(() => {
     getCurrentUser()
@@ -180,7 +210,7 @@ export default function AdminDashboard() {
   const chapters = activeUnit?.chapters || [];
   const courseOptions = COURSE_CATALOG[department] || [];
 
-  // Fetch notes and study resources when chapter changes
+  // Fetch notes, pipeline status, and study resources when chapter changes
   useEffect(() => {
     if (!chapterId) {
       setNotes([]);
@@ -189,42 +219,100 @@ export default function AdminDashboard() {
       setExtractionError('');
       setStudyResources(null);
       setQuizQuestions([]);
+      setDraftFullNotesMarkdown('');
+      setPipelineStatus(null);
       return;
     }
+
     fetchNotes(chapterId).then(setNotes).catch(console.error);
-    fetchStudyResources(chapterId)
-      .then(res => {
-        if (res.studyResources) setStudyResources(res.studyResources);
-        if (res.quizQuestions) setQuizQuestions(res.quizQuestions);
-        if (res.shortNotes) setShortNotes(res.shortNotes);
+    fetchPipelineStatus(chapterId)
+      .then(status => {
+        setPipelineStatus(status);
+        // Hydrate from draft if draft exists, or from published
+        if (status.draft?.hasDraft) {
+          setStudyResources(status.draft.studyResources);
+          setQuizQuestions(status.draft.quizQuestions || []);
+          if (status.draft.fullNotesMarkdown) {
+            setDraftFullNotesMarkdown(status.draft.fullNotesMarkdown);
+          }
+        } else if (status.published?.isPublished) {
+          setStudyResources(status.published.studyResources);
+          setQuizQuestions(status.published.quizQuestions || []);
+          if (status.published.fullNotesMarkdown) {
+            setDraftFullNotesMarkdown(status.published.fullNotesMarkdown);
+          }
+        } else {
+          setStudyResources(null);
+          setQuizQuestions([]);
+        }
       })
       .catch(console.error);
   }, [chapterId]);
 
-  // --- AI Study Resources & 20-MCQ Handlers ---
-  const handleGenerateResources = async (force = false) => {
+  // --- AI Study Resources & Pipeline Handlers ---
+  const handleGenerateResources = async (mode = 'missing_only', force = false, targets = []) => {
     if (!chapterId || isGeneratingResources) return;
     setIsGeneratingResources(true);
     setResourceFeedback(null);
     try {
-      const res = await generateStudyResources(chapterId, force);
+      const res = await runPipelineGenerate(chapterId, {
+        mode,
+        forceRegenerate: force,
+        targets
+      });
+
       if (res.requiresConfirmation) {
         if (window.confirm(`${res.message}\nDo you want to proceed and regenerate?`)) {
-          handleGenerateResources(true);
+          handleGenerateResources(mode, true, targets);
           return;
         } else {
           setIsGeneratingResources(false);
           return;
         }
       }
-      setStudyResources(res.studyResources);
-      setQuizQuestions(res.quizQuestions || []);
-      setResourceFeedback({
-        type: 'success',
-        message: `Successfully generated study resources and ${res.questionCount || 20} MCQs! Ready for review and publishing.`
-      });
+
+      if (res.isUnchanged) {
+        setResourceFeedback({ type: 'success', message: res.message });
+      } else {
+        setStudyResources(res.draftStudyResources);
+        setQuizQuestions(res.draftQuizQuestions || []);
+        if (res.draftFullNotesMarkdown) setDraftFullNotesMarkdown(res.draftFullNotesMarkdown);
+        const qCount = res.questionCount || res.draftQuizQuestions?.length || 0;
+        setResourceFeedback({
+          type: 'success',
+          message: `Generated resources and ${qCount} MCQs into staging draft! Review and approve before publishing.`
+        });
+      }
+
+      // Refresh pipeline status
+      const updatedStatus = await fetchPipelineStatus(chapterId);
+      setPipelineStatus(updatedStatus);
     } catch (err) {
       setResourceFeedback({ type: 'error', message: err.message || 'Generation failed' });
+      const updatedStatus = await fetchPipelineStatus(chapterId).catch(() => null);
+      if (updatedStatus) setPipelineStatus(updatedStatus);
+    } finally {
+      setIsGeneratingResources(false);
+    }
+  };
+
+  const handleRetryPipeline = async () => {
+    if (!chapterId || isGeneratingResources) return;
+    setIsGeneratingResources(true);
+    setResourceFeedback(null);
+    try {
+      const res = await runPipelineRetry(chapterId);
+      setStudyResources(res.draftStudyResources);
+      setQuizQuestions(res.draftQuizQuestions || []);
+      if (res.draftFullNotesMarkdown) setDraftFullNotesMarkdown(res.draftFullNotesMarkdown);
+      setResourceFeedback({
+        type: 'success',
+        message: 'Retry succeeded! Study resources and MCQs generated into staging draft.'
+      });
+      const updatedStatus = await fetchPipelineStatus(chapterId);
+      setPipelineStatus(updatedStatus);
+    } catch (err) {
+      setResourceFeedback({ type: 'error', message: err.message || 'Retry failed' });
     } finally {
       setIsGeneratingResources(false);
     }
@@ -235,28 +323,40 @@ export default function AdminDashboard() {
     setIsSavingResources(true);
     setResourceFeedback(null);
     try {
-      const payload = {
-        studyResources: {
-          ...studyResources,
-          status: publishAll ? 'published' : (studyResources?.status || 'draft')
-        },
-        quizQuestions: quizQuestions.map(q => ({
-          ...q,
-          status: publishAll ? 'published' : (q.status || 'draft')
-        })),
-        publishAll
-      };
-      const res = await updateStudyResources(chapterId, payload);
-      setStudyResources(res.studyResources);
-      setQuizQuestions(res.quizQuestions || []);
-      setResourceFeedback({
-        type: 'success',
-        message: publishAll
-          ? '🎉 All 20 MCQs and study resources approved and published to students!'
-          : 'Study resources and quiz questions saved as draft.'
-      });
+      if (publishAll) {
+        // First save edits to draft
+        await updateDraftResources(chapterId, {
+          draftStudyResources: studyResources,
+          draftQuizQuestions: quizQuestions,
+          draftFullNotesMarkdown
+        });
+        // Publish atomically
+        const res = await publishPipelineResources(chapterId);
+        setStudyResources(res.studyResources);
+        setQuizQuestions(res.quizQuestions || []);
+        setResourceFeedback({
+          type: 'success',
+          message: `🎉 All ${res.questionCount || quizQuestions.length} MCQs and chapter study resources approved and published to students!`
+        });
+      } else {
+        // Save as draft
+        const res = await updateDraftResources(chapterId, {
+          draftStudyResources: studyResources,
+          draftQuizQuestions: quizQuestions,
+          draftFullNotesMarkdown
+        });
+        setStudyResources(res.draftStudyResources);
+        setQuizQuestions(res.draftQuizQuestions || []);
+        setResourceFeedback({
+          type: 'success',
+          message: 'Study resources and quiz questions saved to staging draft (hidden from students).'
+        });
+      }
+
+      const updatedStatus = await fetchPipelineStatus(chapterId);
+      setPipelineStatus(updatedStatus);
     } catch (err) {
-      setResourceFeedback({ type: 'error', message: err.message || 'Save failed' });
+      setResourceFeedback({ type: 'error', message: err.message || 'Action failed' });
     } finally {
       setIsSavingResources(false);
     }
@@ -1446,12 +1546,24 @@ export default function AdminDashboard() {
                                 <div className="flex items-center gap-2 text-[11px] text-slate-500">
                                   <span>{noteDocumentSize ? formatFileSize(noteDocumentSize) : 'PDF Document'}</span>
                                   <span>•</span>
-                                  <span className="text-emerald-700 font-medium">Ready for Preview / Publish</span>
+                                  <span className="text-emerald-700 font-medium">
+                                    {noteDocumentUrl?.includes('cloudinary') ? 'Cloudinary Hosted' : 'Storage Validated'}
+                                  </span>
+                                  <span>•</span>
+                                  <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${
+                                    pipelineStatus?.status === 'published' ? 'bg-emerald-100 text-emerald-800' :
+                                    pipelineStatus?.status === 'draft_ready' ? 'bg-amber-100 text-amber-800' :
+                                    pipelineStatus?.status === 'generating' ? 'bg-indigo-100 text-indigo-800 animate-pulse' :
+                                    pipelineStatus?.status === 'failed' ? 'bg-red-100 text-red-800' :
+                                    'bg-slate-100 text-slate-700'
+                                  }`}>
+                                    Status: {pipelineStatus?.status || 'Uploaded'}
+                                  </span>
                                 </div>
                               </div>
                             </div>
 
-                            <div className="flex items-center gap-2">
+                            <div className="flex flex-wrap items-center gap-2">
                               <button
                                 type="button"
                                 onClick={() => setIsPreviewingAttachedPdf(!isPreviewingAttachedPdf)}
@@ -1459,6 +1571,23 @@ export default function AdminDashboard() {
                               >
                                 {isPreviewingAttachedPdf ? 'Hide Preview' : '👁 Preview PDF'}
                               </button>
+                              <a
+                                href={noteDocumentUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="px-3 py-1.5 text-xs font-semibold bg-white border border-slate-200 rounded-md text-indigo-600 hover:bg-indigo-50 hover:border-indigo-300 transition-colors shadow-2xs inline-flex items-center gap-1"
+                              >
+                                <span>🔗 Open</span>
+                              </a>
+                              <a
+                                href={noteDocumentUrl}
+                                download={noteDocumentName || 'Chapter_Notes.pdf'}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="px-3 py-1.5 text-xs font-semibold bg-white border border-slate-200 rounded-md text-slate-700 hover:bg-slate-50 hover:border-slate-300 transition-colors shadow-2xs inline-flex items-center gap-1"
+                              >
+                                <span>⬇ Download</span>
+                              </a>
                               <button
                                 type="button"
                                 onClick={() => pdfInputRef.current?.click()}
@@ -1488,14 +1617,25 @@ export default function AdminDashboard() {
                             <div className="mt-2 border border-slate-300 rounded-lg overflow-hidden bg-white shadow-inner">
                               <div className="bg-slate-100 px-3 py-1.5 border-b border-slate-200 flex justify-between items-center text-xs text-slate-600 font-medium">
                                 <span>In-Dashboard PDF Inspector</span>
-                                <a 
-                                  href={noteDocumentUrl} 
-                                  target="_blank" 
-                                  rel="noreferrer" 
-                                  className="text-blue-600 hover:underline flex items-center gap-1"
-                                >
-                                  Open in full tab &rarr;
-                                </a>
+                                <div className="flex items-center gap-3">
+                                  <a 
+                                    href={noteDocumentUrl} 
+                                    download={noteDocumentName || 'Chapter_Notes.pdf'}
+                                    target="_blank" 
+                                    rel="noreferrer" 
+                                    className="text-slate-600 hover:text-slate-900 underline flex items-center gap-1"
+                                  >
+                                    ⬇ Download original
+                                  </a>
+                                  <a 
+                                    href={noteDocumentUrl} 
+                                    target="_blank" 
+                                    rel="noreferrer" 
+                                    className="text-blue-600 hover:underline flex items-center gap-1"
+                                  >
+                                    Open in full tab &rarr;
+                                  </a>
+                                </div>
                               </div>
                               <iframe
                                 src={noteDocumentUrl}
@@ -1660,53 +1800,77 @@ export default function AdminDashboard() {
                   {/* Studio Header */}
                   <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white p-6 md:p-8 flex flex-col md:flex-row md:items-center justify-between gap-5">
                     <div>
-                      <div className="flex items-center gap-2.5">
+                      <div className="flex flex-wrap items-center gap-2.5">
                         <span className="px-2.5 py-1 rounded-md text-xs font-bold uppercase tracking-wider bg-indigo-500 text-white">
                           AI Studio
                         </span>
                         <span className={`px-2.5 py-1 rounded-md text-xs font-bold uppercase tracking-wider ${
-                          studyResources?.status === 'published' 
+                          pipelineStatus?.status === 'generating'
+                            ? 'bg-indigo-600 text-white animate-pulse'
+                            : pipelineStatus?.status === 'failed'
+                            ? 'bg-red-600 text-white'
+                            : studyResources?.status === 'published' 
                             ? 'bg-emerald-500 text-white' 
-                            : studyResources ? 'bg-amber-500 text-white' : 'bg-slate-700 text-slate-300'
+                            : (studyResources || draftFullNotesMarkdown)
+                            ? 'bg-amber-500 text-white' 
+                            : 'bg-slate-700 text-slate-300'
                         }`}>
-                          {studyResources?.status === 'published' ? 'PUBLISHED TO STUDENTS' : (studyResources ? 'DRAFT / IN REVIEW' : 'NOT GENERATED')}
+                          {pipelineStatus?.status === 'generating'
+                            ? 'GENERATING AI RESOURCES...'
+                            : pipelineStatus?.status === 'failed'
+                            ? 'PROCESSING FAILED (RETRY READY)'
+                            : studyResources?.status === 'published'
+                            ? 'PUBLISHED TO STUDENTS'
+                            : (studyResources || draftFullNotesMarkdown)
+                            ? 'DRAFT / IN REVIEW'
+                            : 'NOT GENERATED'}
                         </span>
                       </div>
                       <h3 className="text-lg md:text-xl font-extrabold text-white mt-2">
                         Chapter Study Resources & 20-MCQ Question Bank
                       </h3>
                       <p className="text-xs md:text-sm text-indigo-200/90 mt-1">
-                        High-yield short notes, important topics, key definitions, exam revision notes, and exactly 20 chapter-specific MCQs.
+                        Strictly source-grounded: Full markdown notes, high-yield short notes, important topics, key definitions, exam revision notes, and chapter MCQs.
                       </p>
                     </div>
 
                     {/* Studio Top Action Controls */}
-                    <div className="flex flex-wrap items-center gap-3">
+                    <div className="flex flex-wrap items-center gap-2.5">
                       <button
                         type="button"
-                        onClick={() => handleGenerateResources(false)}
+                        onClick={() => handleGenerateResources('missing_only')}
                         disabled={isGeneratingResources || loading}
                         className="px-4 py-2.5 text-xs md:text-sm font-bold bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl transition-colors shadow-sm flex items-center gap-2 disabled:opacity-50"
-                        title="Generate short notes, definitions, revision guide and 20 MCQs from cleaned notes"
+                        title="Generate only missing chapter resources without touching existing ones"
                       >
                         {isGeneratingResources ? (
                           <>
                             <span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
-                            <span>Generating 20 MCQs & Notes...</span>
+                            <span>Processing...</span>
                           </>
                         ) : (
                           <>
                             <svg className="w-4 h-4 text-amber-300" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" clipRule="evenodd" /></svg>
-                            <span>⚡ Generate AI Resources & 20 MCQs</span>
+                            <span>⚡ Generate Missing Resources</span>
                           </>
                         )}
                       </button>
 
                       <button
                         type="button"
+                        onClick={() => setShowRegenModal(true)}
+                        disabled={isGeneratingResources || loading}
+                        className="px-3.5 py-2.5 text-xs md:text-sm font-semibold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-xl transition-colors disabled:opacity-40"
+                        title="Configure selective regeneration of specific resources"
+                      >
+                        ⚙️ Regenerate...
+                      </button>
+
+                      <button
+                        type="button"
                         onClick={() => handleSaveStudyResources(false)}
-                        disabled={isSavingResources || (!studyResources && quizQuestions.length === 0)}
-                        className="px-4 py-2.5 text-xs md:text-sm font-semibold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-xl transition-colors disabled:opacity-40"
+                        disabled={isSavingResources || (!studyResources && quizQuestions.length === 0 && !draftFullNotesMarkdown)}
+                        className="px-3.5 py-2.5 text-xs md:text-sm font-semibold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-xl transition-colors disabled:opacity-40"
                       >
                         {isSavingResources ? 'Saving...' : 'Save Draft'}
                       </button>
@@ -1714,7 +1878,7 @@ export default function AdminDashboard() {
                       <button
                         type="button"
                         onClick={() => handleSaveStudyResources(true)}
-                        disabled={isSavingResources || (!studyResources && quizQuestions.length === 0)}
+                        disabled={isSavingResources || (!studyResources && quizQuestions.length === 0 && !draftFullNotesMarkdown)}
                         className="px-5 py-2.5 text-xs md:text-sm font-bold bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl transition-colors shadow-sm flex items-center gap-2 disabled:opacity-40"
                       >
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" /></svg>
@@ -1722,6 +1886,53 @@ export default function AdminDashboard() {
                       </button>
                     </div>
                   </div>
+
+                  {/* Processing Failure Banner with Retry Button */}
+                  {(pipelineStatus?.status === 'failed' || pipelineStatus?.error) && (
+                    <div className="p-4 bg-red-50 border-b border-red-200 text-red-900 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs md:text-sm">
+                      <div className="flex items-center gap-2.5">
+                        <span className="text-lg">⚠️</span>
+                        <div>
+                          <span className="font-bold">Generation / Extraction Notice: </span>
+                          <span>{pipelineStatus?.error || 'An error occurred during pipeline processing.'}</span>
+                          <span className="block text-[11px] text-red-700 mt-0.5">Your existing published content and uploaded PDF remain completely intact and safe.</span>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleRetryPipeline}
+                        disabled={isGeneratingResources}
+                        className="px-4 py-2 bg-red-700 hover:bg-red-800 text-white font-bold rounded-lg text-xs shrink-0 transition-colors shadow-2xs"
+                      >
+                        ↻ Retry Processing (Uses Existing PDF)
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Shortfall Grounding Warning Banner */}
+                  {pipelineStatus?.shortfallNotice?.hasShortfall && (
+                    <div className="p-4 bg-amber-50 border-b border-amber-200 text-amber-900 flex items-start gap-2.5 text-xs md:text-sm">
+                      <span className="text-lg shrink-0">⚠️</span>
+                      <div>
+                        <span className="font-bold">Source Grounding Shortfall Notice: </span>
+                        <span>
+                          The uploaded PDF source supported {pipelineStatus.shortfallNotice.actualCount} out of 20 questions requested.
+                          {pipelineStatus.shortfallNotice.reason && ` Reason: ${pipelineStatus.shortfallNotice.reason}.`}
+                        </span>
+                        <span className="block text-[11px] text-amber-800 mt-0.5 font-medium">
+                          StuDS adheres strictly to source content and will never invent hallucinated or out-of-syllabus MCQs to artificially meet the count.
+                        </span>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Source Limitations Notice */}
+                  {studyResources?.sourceLimitations && (
+                    <div className="p-3.5 bg-blue-50 border-b border-blue-200 text-blue-900 flex items-start gap-2 text-xs">
+                      <span className="font-bold shrink-0">ℹ️ Source Notes:</span>
+                      <span>{studyResources.sourceLimitations}</span>
+                    </div>
+                  )}
 
                   {/* Feedback Banner */}
                   {resourceFeedback && (
@@ -1734,27 +1945,31 @@ export default function AdminDashboard() {
                     </div>
                   )}
 
-                  {/* Studio Quick Stats */}
-                  <div className="grid grid-cols-2 sm:grid-cols-5 border-b border-slate-200 bg-slate-50/80 text-center divide-x divide-slate-200 text-xs md:text-sm">
-                    <div className="p-3.5">
+                  {/* Studio Quick Stats - 6 Columns */}
+                  <div className="grid grid-cols-2 sm:grid-cols-6 border-b border-slate-200 bg-slate-50/80 text-center divide-x divide-slate-200 text-xs md:text-sm">
+                    <div className="p-3">
                       <span className="block font-bold text-slate-900 text-base md:text-lg">{quizQuestions.length}</span>
                       <span className="text-xs text-slate-500 font-medium">MCQ Questions</span>
                     </div>
-                    <div className="p-3.5">
+                    <div className="p-3">
                       <span className="block font-bold text-slate-900 text-base md:text-lg">{studyResources?.shortNotes?.length || 0}</span>
                       <span className="text-xs text-slate-500 font-medium">Short Notes</span>
                     </div>
-                    <div className="p-3.5">
+                    <div className="p-3">
                       <span className="block font-bold text-slate-900 text-base md:text-lg">{studyResources?.importantTopics?.length || 0}</span>
                       <span className="text-xs text-slate-500 font-medium">Important Topics</span>
                     </div>
-                    <div className="p-3.5">
+                    <div className="p-3">
                       <span className="block font-bold text-slate-900 text-base md:text-lg">{studyResources?.keyDefinitions?.length || 0}</span>
                       <span className="text-xs text-slate-500 font-medium">Key Definitions</span>
                     </div>
-                    <div className="p-3.5">
+                    <div className="p-3">
                       <span className="block font-bold text-emerald-700 text-base md:text-lg">{studyResources?.examRevisionNotes ? 'Ready' : 'Pending'}</span>
                       <span className="text-xs text-slate-500 font-medium">Revision Guide</span>
+                    </div>
+                    <div className="p-3">
+                      <span className="block font-bold text-violet-700 text-base md:text-lg">{draftFullNotesMarkdown ? 'Ready' : 'Pending'}</span>
+                      <span className="text-xs text-slate-500 font-medium">Full Notes</span>
                     </div>
                   </div>
 
@@ -1827,6 +2042,20 @@ export default function AdminDashboard() {
                     >
                       <span>📝 Exam Revision Guide</span>
                     </button>
+                    <button
+                      type="button"
+                      onClick={() => setResourceStudioTab('fullNotes')}
+                      className={`py-3.5 px-5 border-b-2 transition-colors flex items-center gap-2.5 shrink-0 ${
+                        resourceStudioTab === 'fullNotes'
+                          ? 'border-indigo-600 text-indigo-700 bg-indigo-50/40'
+                          : 'border-transparent text-slate-600 hover:text-slate-900'
+                      }`}
+                    >
+                      <span>📚 Full Notes (Markdown)</span>
+                      <span className="bg-slate-100 text-slate-700 text-xs font-bold px-2 py-0.5 rounded-full">
+                        {draftFullNotesMarkdown ? 'Draft' : 'Empty'}
+                      </span>
+                    </button>
                   </div>
 
                   {/* Tab Panels */}
@@ -1869,8 +2098,8 @@ export default function AdminDashboard() {
                           <div className="flex flex-col gap-5">
                             {quizQuestions.map((q, qIdx) => (
                               <div key={q._id || qIdx} className="bg-white border border-slate-200 rounded-xl p-5 md:p-6 shadow-2xs flex flex-col gap-4">
-                                <div className="flex items-center justify-between gap-2 border-b border-slate-100 pb-3">
-                                  <div className="flex items-center gap-2.5">
+                                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3">
+                                  <div className="flex flex-wrap items-center gap-2.5">
                                     <span className="w-7 h-7 rounded-full bg-indigo-100 text-indigo-800 text-xs font-bold flex items-center justify-center shrink-0">
                                       {qIdx + 1}
                                     </span>
@@ -1879,6 +2108,23 @@ export default function AdminDashboard() {
                                     }`}>
                                       {q.status || 'draft'}
                                     </span>
+                                    <div className="flex items-center gap-1.5 ml-2">
+                                      <label className="text-[11px] font-bold text-slate-500 uppercase">Difficulty:</label>
+                                      <select
+                                        value={q.difficulty || 'medium'}
+                                        onChange={(e) => handleUpdateQuizQuestion(qIdx, 'difficulty', e.target.value)}
+                                        className="text-xs font-medium px-2 py-0.5 border border-slate-300 rounded bg-white text-slate-700"
+                                      >
+                                        <option value="easy">Easy</option>
+                                        <option value="medium">Medium</option>
+                                        <option value="hard">Hard</option>
+                                      </select>
+                                    </div>
+                                    {q.isManuallyEdited && (
+                                      <span className="text-[10px] font-semibold bg-amber-100 text-amber-800 px-2 py-0.5 rounded">
+                                        Edited
+                                      </span>
+                                    )}
                                   </div>
                                   <button
                                     type="button"
@@ -2157,8 +2403,136 @@ export default function AdminDashboard() {
                         )}
                       </div>
                     )}
+
+                    {/* TAB 6: Full-Text Comprehensive Notes (Markdown) */}
+                    {resourceStudioTab === 'fullNotes' && (
+                      <div className="flex flex-col gap-4">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-200">
+                          <div>
+                            <h4 className="text-sm font-bold uppercase tracking-wider text-slate-700">
+                              Comprehensive Chapter Textbook Notes (Markdown)
+                            </h4>
+                            <p className="text-xs text-slate-500 mt-0.5">
+                              Extracted and structured chapter synthesis from the source PDF. Formatted with GitHub-Flavored Markdown tables, formulas, and diagrams.
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => setIsEditingFullNotes(!isEditingFullNotes)}
+                              className="px-4 py-2 text-xs md:text-sm font-semibold bg-white border border-slate-300 rounded-lg text-slate-700 hover:bg-slate-50 shadow-2xs"
+                            >
+                              {isEditingFullNotes ? 'Preview Rendered Markdown' : 'Edit Markdown'}
+                            </button>
+                          </div>
+                        </div>
+
+                        {isEditingFullNotes ? (
+                          <textarea
+                            rows={20}
+                            value={draftFullNotesMarkdown || ''}
+                            onChange={(e) => setDraftFullNotesMarkdown(e.target.value)}
+                            className="w-full text-sm md:text-base font-mono p-4 border border-slate-300 rounded-xl bg-white leading-relaxed shadow-inner"
+                            placeholder="Write or edit full textbook chapter notes in Markdown..."
+                          />
+                        ) : (
+                          <div className="border border-slate-200 rounded-xl p-6 sm:p-8 bg-white text-slate-800 text-base md:text-[17px] leading-[1.65] max-h-[640px] overflow-y-auto markdown-content shadow-inner">
+                            <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                              {draftFullNotesMarkdown || '*No full textbook notes generated yet. Click "⚡ Generate Missing Resources" or "⚙️ Regenerate..." above.*'}
+                            </ReactMarkdown>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
+
+                {/* Selective Regeneration Confirmation Modal */}
+                {showRegenModal && (
+                  <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+                    <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full p-6 border border-slate-200 animate-in fade-in zoom-in-95 duration-150">
+                      <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xl">⚙️</span>
+                          <h3 className="text-base font-bold text-slate-900">Selective Resource Regeneration</h3>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setShowRegenModal(false)}
+                          className="text-slate-400 hover:text-slate-600 font-bold text-xl px-2 py-0.5"
+                        >
+                          &times;
+                        </button>
+                      </div>
+
+                      <div className="py-4 text-xs md:text-sm text-slate-600 flex flex-col gap-3">
+                        <p className="text-slate-700 leading-relaxed font-medium">
+                          Select which learning resources to regenerate from the uploaded PDF:
+                        </p>
+                        <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-amber-900 text-xs leading-relaxed">
+                          <strong className="block font-bold mb-0.5">Content-Preservation Safety Rule:</strong>
+                          Regeneration runs exclusively in a separate staging draft. Any approved content currently published to students remains completely untouched until you review the generated draft and explicitly click &ldquo;Approve & Publish&rdquo;.
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-2">
+                          {[
+                            { id: 'fullNotes', label: 'Full Notes (Markdown)' },
+                            { id: 'shortNotes', label: 'Short Notes (Bullet Points)' },
+                            { id: 'importantTopics', label: 'Important Exam Topics' },
+                            { id: 'keyDefinitions', label: 'Key Definitions' },
+                            { id: 'examRevisionNotes', label: 'Exam Revision Guide' },
+                            { id: 'quizQuestions', label: '20-MCQ Question Bank' }
+                          ].map((item) => {
+                            const isChecked = customGenTargets.includes(item.id);
+                            return (
+                              <label
+                                key={item.id}
+                                className={`flex items-center gap-2 p-2.5 border rounded-lg cursor-pointer transition-colors text-xs font-semibold ${
+                                  isChecked ? 'border-indigo-400 bg-indigo-50/50 text-indigo-900' : 'border-slate-200 text-slate-700 hover:bg-slate-50'
+                                }`}
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={isChecked}
+                                  onChange={(e) => {
+                                    if (e.target.checked) {
+                                      setCustomGenTargets([...customGenTargets, item.id]);
+                                    } else {
+                                      setCustomGenTargets(customGenTargets.filter(t => t !== item.id));
+                                    }
+                                  }}
+                                  className="w-4 h-4 text-indigo-600 rounded"
+                                />
+                                <span>{item.label}</span>
+                              </label>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      <div className="pt-4 border-t border-slate-100 flex items-center justify-end gap-3">
+                        <button
+                          type="button"
+                          onClick={() => setShowRegenModal(false)}
+                          className="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-900"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          type="button"
+                          disabled={customGenTargets.length === 0 || isGeneratingResources}
+                          onClick={() => {
+                            setShowRegenModal(false);
+                            handleGenerateResources('selective', true, customGenTargets);
+                          }}
+                          className="px-5 py-2.5 text-xs md:text-sm font-bold bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl shadow-sm transition-colors disabled:opacity-40"
+                        >
+                          {isGeneratingResources ? 'Generating...' : `Regenerate Selected (${customGenTargets.length})`}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 {/* Module C: PYQs */}
                 <div className="flex flex-col gap-2">
