@@ -11,7 +11,7 @@ const pdfTextExtractor = require('../services/pdfTextExtractor');
 const pipelineService = require('../services/pipelineService');
 const studyResourcesService = require('../services/studyResourcesService');
 
-const TEST_CHAPTER_ID = '09455e6f-b461-4263-8524-4a4b75c5ba52'; // Sem 5 -> CN -> Unit 1 -> Chapter 1.1
+const TEST_CHAPTER_ID = 'test-isolated-safe-pipeline-mock-chapter'; // Isolated test mock to prevent overwriting production data
 
 let passedTests = 0;
 let failedTests = 0;
@@ -244,10 +244,12 @@ async function runSafePdfPipelineTests() {
     console.log(`FAILED: ${failedTests}`);
     console.log('================================================================\n');
 
+    await Content.deleteOne({ chapterId: TEST_CHAPTER_ID });
     await mongoose.disconnect();
     process.exit(failedTests > 0 ? 1 : 0);
   } catch (err) {
     console.error('Test Suite Error:', err);
+    try { await Content.deleteOne({ chapterId: TEST_CHAPTER_ID }); } catch (_) {}
     await mongoose.disconnect();
     process.exit(1);
   }

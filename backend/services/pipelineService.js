@@ -417,6 +417,11 @@ async function publishChapterResources(chapterId, user) {
   content.quizQuestions = publishedQuestions;
   if (draftFullNotes) {
     content.fullNotesMarkdown = draftFullNotes;
+  } else if (!content.fullNotesMarkdown && content.notes && content.notes.length > 0) {
+    const noteWithMd = content.notes.find(n => n.extractedMarkdown) || content.notes[0];
+    if (noteWithMd?.extractedMarkdown) {
+      content.fullNotesMarkdown = noteWithMd.extractedMarkdown;
+    }
   }
 
   // Backward compatibility sync
@@ -509,7 +514,7 @@ async function getPipelineStatus(chapterId) {
       publishedAt: content.studyResources?.publishedAt || null,
       studyResources: content.studyResources?.status === 'published' ? content.studyResources : null,
       quizQuestions: (content.quizQuestions || []).filter(q => q.status === 'published'),
-      fullNotesMarkdown: content.fullNotesMarkdown || '',
+      fullNotesMarkdown: content.fullNotesMarkdown || noteWithPdf?.extractedMarkdown || (content.notes && content.notes[0]?.extractedMarkdown) || '',
       questionCount: (content.quizQuestions || []).filter(q => q.status === 'published').length
     }
   };

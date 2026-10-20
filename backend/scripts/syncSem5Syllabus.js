@@ -789,7 +789,18 @@ async function syncSyllabus() {
         } else {
           unit.unitName = unitData.unitName;
           unit.contactHours = unitData.contactHours;
-          unit.chapters = unitData.chapters;
+          // Preserve existing chapterId if chapterName matches to prevent breaking content mappings
+          const existingChaptersMap = new Map((unit.chapters || []).map(ch => [ch.chapterName.trim().toLowerCase(), ch.chapterId]));
+          unit.chapters = unitData.chapters.map(ch => {
+            const existingId = existingChaptersMap.get(ch.chapterName.trim().toLowerCase());
+            if (existingId) {
+              return { ...ch, chapterId: existingId };
+            }
+            if (/1\.1\s+Introduction/i.test(ch.chapterName)) {
+              return { ...ch, chapterId: '09455e6f-b461-4263-8524-4a4b75c5ba52' };
+            }
+            return ch;
+          });
           await unit.save();
           console.log(`Updated Unit ${unitData.unitNumber} for ${subjectName}`);
         }

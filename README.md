@@ -1,12 +1,12 @@
 # STUDS – College Study Material Portal & Academic Management System
 
 ![React 19](https://img.shields.io/badge/React-19.2.6-61DAFB?logo=react&logoColor=black)
-![Vite](https://img.shields.io/badge/Vite-8.0.12-646CFF?logo=vite&logoColor=white)
+![Vite](https://img.shields.io/badge/Vite-8.0.14-646CFF?logo=vite&logoColor=white)
 ![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-v4.3.0-38B2AC?logo=tailwind-css&logoColor=white)
 ![Node.js](https://img.shields.io/badge/Node.js-LTS-339933?logo=node.js&logoColor=white)
 ![Express.js](https://img.shields.io/badge/Express.js-5.2.1-000000?logo=express&logoColor=white)
 ![MongoDB](https://img.shields.io/badge/MongoDB-Mongoose_9.6.2-47A248?logo=mongodb&logoColor=white)
-![Google Gemini](https://img.shields.io/badge/Google_Gemini-1.5_Flash-4285F4?logo=google&logoColor=white)
+![Google Gemini](https://img.shields.io/badge/Google_Gemini-2.0_%26_1.5_Flash-4285F4?logo=google&logoColor=white)
 ![Cloudinary](https://img.shields.io/badge/Cloudinary-Media_Cloud-3448C5?logo=cloudinary&logoColor=white)
 
 ---
@@ -20,17 +20,24 @@
    - [Backend Technologies](#backend-technologies)
    - [Database & Storage](#database--storage)
    - [AI & Cloud Services](#ai--cloud-services)
-   - [Development & Security Utilities](#development--security-utilities)
-4. [How the System Works (Architecture & Flows)](#-how-the-system-works-architecture--flows)
+   - [Development & Testing Utilities](#development--testing-utilities)
+4. [How the System Works (Architecture & Workflows)](#-how-the-system-works-architecture--workflows)
    - [System Architecture Diagram](#system-architecture-diagram)
-   - [1. Student Portal Workflow (Public Experience)](#1-student-portal-workflow-public-experience)
-   - [2. Admin Workspace Workflow (Protected Ingestion)](#2-admin-workspace-workflow-protected-ingestion)
-   - [3. Authentication & Stateful Session Lifecycle](#3-authentication--stateful-session-lifecycle)
-   - [4. Document Parsing & Storage Pipeline](#4-document-parsing--storage-pipeline)
-   - [5. AI Chapter Summarization Pipeline](#5-ai-chapter-summarization-pipeline)
-   - [6. Global Command Search (Ctrl + K) Engine](#6-global-command-search-ctrl--k-engine)
+   - [1. Student Portal Experience (Public Flow)](#1-student-portal-experience-public-flow)
+   - [2. Admin Learning Resources Studio (Protected Workflow)](#2-admin-learning-resources-studio-protected-workflow)
+   - [3. Safe 10-Stage PDF-to-AI Generation Pipeline](#3-safe-10-stage-pdf-to-ai-generation-pipeline)
+   - [4. Source Grounding, Shortfall Reporting & Hallucination Prevention](#4-source-grounding-shortfall-reporting--hallucination-prevention)
+   - [5. Intelligent Notes Cleaner & Syllabus Coverage Engine](#5-intelligent-notes-cleaner--syllabus-coverage-engine)
+   - [6. Secure Chapter Quiz Engine & Anti-Cheating Architecture](#6-secure-chapter-quiz-engine--anti-cheating-architecture)
+   - [7. Semantic Text Chunking & RAG Preparation](#7-semantic-text-chunking--rag-preparation)
+   - [8. Authentication & Stateful Session Security](#8-authentication--stateful-session-security)
+   - [9. Global Command Search (`Ctrl + K`) Engine](#9-global-command-search-ctrl--k-engine)
 5. [Database Models & Schemas](#-database-models--schemas)
 6. [API Endpoints Reference](#-api-endpoints-reference)
+   - [Public Student Portal Routes (`/api`)](#public-student-portal-routes-api)
+   - [Student Quiz Practice Endpoints (`/api/quiz`)](#student-quiz-practice-endpoints-apiquiz)
+   - [Authentication Endpoints (`/api/auth`)](#authentication-endpoints-apiauth)
+   - [Admin Pipeline & Content Routes (`/api/admin`)](#admin-pipeline--content-routes-apiadmin)
 7. [Project Directory Structure](#-project-directory-structure)
 8. [Installation & Setup Guide](#-installation--setup-guide)
    - [Prerequisites](#prerequisites)
@@ -40,8 +47,8 @@
    - [Step 4: Create Initial Super-Admin Account](#step-4-create-initial-super-admin-account)
    - [Step 5: Launch Backend Server](#step-5-launch-backend-server)
    - [Step 6: Frontend Setup & Local Development](#step-6-frontend-setup--local-development)
-9. [Automation Scripts & CLI Utilities](#-automation-scripts--cli-utilities)
-10. [Security Implementations](#-security-implementations)
+9. [Automation Scripts & CLI Test Suites](#-automation-scripts--cli-test-suites)
+10. [Security & Isolation Principles](#-security--isolation-principles)
 11. [License](#-license)
 
 ---
@@ -63,21 +70,50 @@ In modern colleges and universities, academic resources are routinely scattered 
 STUDS eliminates fragmentation by enforcing a structured 6-tier academic taxonomy:  
 $$\text{Department} \longrightarrow \text{Course / Specialization} \longrightarrow \text{Semester} \longrightarrow \text{Subject} \longrightarrow \text{Unit} \longrightarrow \text{Chapter}$$
 
-For every single chapter, STUDS unifies **four dedicated study modules**:
-1. **Comprehensive Study Notes** – High-definition Markdown notes with built-in AI Chapter Synthesis.
-2. **Key Revision Short Notes** – Concise, bulleted takeaways for rapid pre-exam revision.
-3. **Previous Years' Exam Papers (PYQs)** – Cloud-hosted, high-performance embedded PDF viewer.
-4. **Interactive Practice Quizzes** – Self-scoring multiple-choice quizzes with instant grading, progress tracking, and answer explanations.
+For every single chapter, STUDS unifies **four coordinated study modules**:
+1. **Comprehensive Study Material** – Textbook-level Markdown notes rendered via `react-markdown` and `remark-gfm`, PDF document download/preview attachments, and AI Chapter Synthesis.
+2. **Key Study Resources (4-in-1 Hub)**:
+   - **Short Notes**: High-yield takeaways for rapid review.
+   - **Important Topics**: Key examination topics identified from the curriculum.
+   - **Key Definitions**: Essential terminology and glossary definitions.
+   - **Exam Revision Guide**: Structured revision notes with formulas, comparisons, and Markdown summary tables.
+3. **Previous Years' Exam Papers (PYQs)** – Cloud-hosted, high-performance embedded PDF viewer sandboxed directly in the browser.
+4. **Interactive Practice Quizzes** – Secure chapter quizzes with randomized 5-question attempts, server-side answer evaluation, score calculation, and detailed rationale feedback.
 
 ---
 
 ## ✨ Key Features
 
-- **Strict 6-Tier Hierarchy**: Keeps courses organized systematically across all university disciplines (Engineering, Management, Computing, and Applied Sciences).
-- **4-in-1 Study Hub**: Seamlessly switch between rich textbook notes, short revision points, original past exam papers, and practice quizzes on any chapter.
-- **AI Chapter Synthesis**: Powered by Google Gemini 1.5 Flash to automatically condense verbose chapter texts into clean, 5-point revision summaries.
-- **Global Command Search (`Ctrl + K` / `Cmd + K`)**: Keyboard-driven modal search palette backed by MongoDB `$text` search indexing, complete with query debouncing and direct chapter navigation.
-- **Direct Document Ingestion (DOCX, Markdown & PDF)**: Admin support for uploading `.docx` Word documents (auto-converted to Markdown via Mammoth and Turndown) or PDF question papers streamed directly to Cloudinary.
+- **Strict 6-Tier Academic Taxonomy**: Eliminates unstructured directories by organizing studies systematically into Department, Course, Semester, Subject, Unit, and Chapter.
+- **Safe 10-Stage PDF-to-AI Pipeline**:
+  - Genuine PDF verification (magic bytes and MIME check).
+  - Dual extraction: high-performance stream extraction via `pdf-parse` with automatic fallback to **Google Gemini Multimodal OCR** for scanned documents.
+  - Source-text validation: checks printable character ratio (>75%), minimum word threshold, and detects binary corruption.
+  - Missing-resource detection: generates only absent learning materials (`fullNotes`, `shortNotes`, `importantTopics`, `keyDefinitions`, `examRevisionNotes`, `quizQuestions`) to prevent overwriting existing assets.
+  - Strict source grounding: AI synthesis is strictly constrained to extracted document text.
+  - Shortfall reporting: Reports factual shortfalls instead of hallucinating fake questions when source text is brief.
+  - Staging draft isolation: Generated materials persist in staging drafts (`draftStudyResources`, `draftQuizQuestions`, `draftFullNotesMarkdown`) without altering published student-facing materials.
+  - Admin Studio review: Content admins can review, edit, and fine-tune drafted questions, definitions, and revision notes.
+  - Explicit atomic publication: One-click approval promotes validated drafts to production and synchronizes backward-compatible models.
+  - Resilient retry: Failed generation attempts retain the original PDF and extracted text, enabling retries without re-uploading large assets.
+- **Intelligent Note Cleaner & Syllabus Coverage**:
+  - Strips repetitive headers, footers, page markers (`-- 1 of 45 --`), and course boilerplate.
+  - Converts section headers to clean hierarchical Markdown (`#`, `##`, `###`, `####`).
+  - Auto-formats tabular sections into GitHub Flavored Markdown (GFM) tables.
+  - Preserves ASCII / fixed-width network topology diagrams and architectural illustrations.
+  - Verifies syllabus topic coverage against standard university curriculum guidelines.
+- **Semantic Text Chunking for Future RAG / Embeddings**:
+  - Splits extracted textbook notes into semantic paragraph chunks (~600–1200 characters) stored in MongoDB for future vector embeddings, citation indexing, and AI doubt solving.
+- **Multi-Format Document Ingestion**:
+  - Native PDF document handling via Multer in-memory streaming directly to Cloudinary.
+  - Microsoft Word `.docx` file ingestion parsed via Mammoth into HTML and transformed into clean Markdown via Turndown.
+- **Secure Chapter Quiz Practice Engine**:
+  - Server-side question randomization: pulls 5 distinct random questions per student attempt from the chapter question bank.
+  - Cheating prevention: server strips `correctAnswer` and `explanation` from the attempt payload.
+  - Server-side score validation: validates student answers against the database, tabulates percentage scores, and unlocks explanations post-submission.
+- **Global Command Search (`Ctrl + K` / `Cmd + K`)**:
+  - Keyboard-driven modal search palette backed by MongoDB compound `$text` search indexing.
+  - 250ms debouncing, live snippet highlighting, and direct chapter navigation.
 - **Enterprise-Grade Stateful Session Security**:
   - High-entropy cryptographic session tokens (48 random bytes).
   - Stored strictly as HMAC-SHA256 hashes using a server pepper secret (`SESSION_TOKEN_PEPPER`).
@@ -88,13 +124,13 @@ For every single chapter, STUDS unifies **four dedicated study modules**:
   - Rate limiting (10 attempts / 15 minutes) on authentication routes.
   - Strict CORS origin whitelisting and CSRF origin guards.
 - **Fine-Grained Role-Based Access Control (RBAC)**:
-  - `student`: Read-only access to published university curricula.
-  - `content_admin`: Manage chapter notes, upload PDFs/documents, and run AI summaries.
-  - `super_admin`: Full administrative rights including creating new subjects and units.
+  - `student`: Public read-only access to published university curricula, notes, and interactive quizzes.
+  - `content_admin`: Full access to upload PDFs/DOCX, trigger AI resource generation, edit staging drafts, and publish materials.
+  - `super_admin`: Complete platform control including subject creation, syllabus unit structuring, and administrative account management.
 - **Modern Responsive UI / UX**:
   - Tailwind CSS v4 design system with smooth micro-interactions.
   - Seamless Light and Dark mode toggle with `localStorage` persistence.
-  - Accordion-style curriculum navigation and embedded PDF sandbox iframe.
+  - Accessible hover elevations, keyboard focus rings, and `prefers-reduced-motion` compliance.
 
 ---
 
@@ -103,24 +139,27 @@ For every single chapter, STUDS unifies **four dedicated study modules**:
 ### Frontend Technologies
 | Tool / Library | Version | Role in Project |
 | :--- | :--- | :--- |
-| **React** | `^19.2.6` | Modern component architecture, state hooks, and reactive UI trees. |
-| **Vite** | `^8.0.12` | Next-generation build tool and dev server with instant Hot Module Replacement (HMR). |
-| **Tailwind CSS v4** | `^4.3.0` | High-performance CSS engine for utility-first styling, glassmorphism, and responsive layouts. |
-| **@tailwindcss/vite** | `^4.3.0` | Official Vite plugin integrating the Tailwind CSS v4 compiler. |
-| **React Router DOM** | `^7.15.1` | Client-side routing managing navigation between the student portal (`/`) and the admin workspace (`/admin`). |
-| **React Markdown** | `^10.1.0` | Safely parses and renders Markdown strings into structured HTML for textbook notes and AI summaries. |
-| **Lucide React** | `^1.16.0` | Crisp SVG icon set for clean navigational controls and visual indicators. |
+| **React** | `^19.2.6` | Declarative UI library powering reactive component state and rendering trees. |
+| **Vite** | `^8.0.14` | High-speed frontend build tool and dev server with instant Hot Module Replacement (HMR). |
+| **Tailwind CSS v4** | `^4.3.0` | Utility-first CSS engine powering the dark/light design system and responsive layouts. |
+| **@tailwindcss/vite** | `^4.3.0` | Official Vite plugin integrating the Tailwind CSS v4 compiler directly into the build pipeline. |
+| **React Router DOM** | `^7.15.1` | Client-side routing managing navigation between the student portal (`/`) and admin dashboard (`/admin`). |
+| **React Markdown** | `^10.1.0` | Safely parses and renders Markdown strings into structured HTML for notes and revision summaries. |
+| **Remark GFM** | `^4.0.1` | Remark plugin adding GitHub Flavored Markdown support (tables, strikethrough, autolinks, task lists). |
+| **Lucide React** | `^1.16.0` | Crisp SVG icon set for clean navigational controls, status badges, and visual indicators. |
 
 ### Backend Technologies
 | Tool / Library | Version | Role in Project |
 | :--- | :--- | :--- |
-| **Node.js** | LTS (v18+) | Server-side JavaScript runtime executing the backend APIs. |
-| **Express.js** | `^5.2.1` | Web framework handling routing, middleware pipelines, and RESTful HTTP APIs. |
+| **Node.js** | LTS (v18+) | Server-side JavaScript runtime environment executing the backend REST APIs. |
+| **Express.js** | `^5.2.1` | Minimalist web framework handling routing, middleware pipelines, and HTTP controllers. |
 | **Cookie-Parser** | `^1.4.7` | Parses incoming HTTP request `Cookie` headers into `req.cookies` to extract session tokens. |
 | **CORS** | `^2.8.6` | Configures Cross-Origin Resource Sharing with whitelisted origins and credential sharing support. |
 | **Bcrypt** | `^6.0.0` | Industry-standard password hashing algorithm (cost factor 12) for account protection. |
 | **Express-Rate-Limit** | `^8.6.2` | Brute-force protection on authentication endpoints (10 attempts per 15-minute window). |
-| **Multer** | `^2.1.1` | In-memory multipart/form-data handler for PDF and DOCX file uploads (up to 10MB). |
+| **Multer** | `^2.1.1` | In-memory multipart/form-data handler for PDF and DOCX document uploads (up to 35MB). |
+| **pdf-parse** | `^2.4.5` | Fast in-memory PDF stream parser for high-throughput text extraction from uploaded textbook notes. |
+| **tesseract.js** | `^7.0.0` | Client/server OCR engine for optical character recognition on scanned academic documents. |
 | **Mammoth** | `^1.13.0` | Reads `.docx` files in-memory and converts them into structured HTML. |
 | **Turndown** | `^7.2.4` | Converts HTML markup generated from Word documents into clean Markdown. |
 | **Dotenv** | `^17.4.2` | Loads environment configurations and secrets from `.env` into `process.env`. |
@@ -129,7 +168,7 @@ For every single chapter, STUDS unifies **four dedicated study modules**:
 ### Database & Storage
 | Tool / Technology | Version | Role in Project |
 | :--- | :--- | :--- |
-| **MongoDB** | `^6.0+` | NoSQL document database providing schemaless flexibility, text indexing, and TTL support. |
+| **MongoDB** | `^6.0+` | NoSQL document database providing flexible document modeling, text indexing, and TTL support. |
 | **Mongoose** | `^9.6.2` | Object Data Modeling (ODM) library providing validation, schemas, and queries. |
 | **MongoDB TTL Index** | Built-in | Background thread automatically purges expired session records (`expireAfterSeconds: 0`). |
 | **MongoDB Text Index** | Built-in | Compound full-text search indexes on notes and revision summaries with relevance scoring. |
@@ -137,61 +176,79 @@ For every single chapter, STUDS unifies **four dedicated study modules**:
 ### AI & Cloud Services
 | Service / SDK | Version | Role in Project |
 | :--- | :--- | :--- |
-| **Google Generative AI (`@google/generative-ai`)** | `^0.24.1` | Integrates with **Google Gemini 1.5 Flash** to automatically condense chapter notes into 5-point study summaries. |
+| **Google Generative AI (`@google/generative-ai`)** | `^0.24.1` | Multi-model integration with **Google Gemini 2.0 Flash / 1.5 Flash / 1.5 Pro** for source-grounded learning resource synthesis and multimodal PDF OCR. |
 | **Cloudinary (`cloudinary`)** | `^2.10.0` | Cloud media storage holding raw exam PDF files and uploaded course notes documents. |
+
+### Development & Testing Utilities
+| Utility / Test Suite | Path | Role in Project |
+| :--- | :--- | :--- |
+| **Security Test Suite** | `backend/scripts/securityTest.js` | 42-point automated verification testing authentication, RBAC, session revocation, and rate limiting. |
+| **Safe PDF Pipeline Suite** | `backend/scripts/testSafePdfPipeline.js` | 37-point automated verification across 8 test groups verifying extraction, validation, staging isolation, and atomic publication. |
+| **Notes Cleaner Suite** | `backend/scripts/testCleanedNotesWorkflow.js` | Verifies boilerplate stripping, markdown table formatting, and syllabus coverage verification. |
+| **Study Resources Suite** | `backend/scripts/testStudyResourcesWorkflow.js` | Verifies Gemini generation, missing-resource detection, and quiz validation. |
 
 ---
 
-## ⚙️ How the System Works (Architecture & Flows)
+## ⚙️ How the System Works (Architecture & Workflows)
 
 ### System Architecture Diagram
 
 ```
-+-----------------------------------------------------------------------------------------+
-|                                    CLIENT BROWSER                                       |
-|                                                                                         |
-|   +------------------------------------+    +---------------------------------------+   |
-|   |    STUDENT PORTAL (App.jsx)        |    |     ADMIN DASHBOARD (AdminDashboard)  |   |
-|   |  - Course Selector (localStorage)  |    |  - Cascading 6-Tier Selector          |   |
-|   |  - Semester Subject Accordion      |    |  - Multi-Part Notes & Quiz Authoring  |   |
-|   |  - 4 Tabs: Notes/Short/PYQ/Quiz    |    |  - DOCX / PDF Uploader                |   |
-|   |  - Command Search Palette (Ctrl+K) |    |  - Gemini AI Summary Trigger          |   |
-|   +------------------------------------+    +---------------------------------------+   |
-+-----------------------------------------------------------------------------------------+
-                                 |                                 |
-                 HTTP (Credentials: include)       HTTP (HttpOnly Cookie: studs_session)
-                                 v                                 v
-+-----------------------------------------------------------------------------------------+
-|                                EXPRESS BACKEND (Node.js)                                |
-|                                                                                         |
-|   [CORS Whitelist] ---> [cookieParser] ---> [Rate Limiter] ---> [Origin Verifier]       |
-|                                                                                         |
-|   +-------------------------------------+   +---------------------------------------+   |
-|   |      PUBLIC ROUTES (/api)           |   |       PROTECTED ROUTES (/api/admin)   |   |
-|   |  GET  /subjects/:semester           |   |  POST /subject   (super_admin)        |   |
-|   |  GET  /units/:subjectId             |   |  POST /unit      (super_admin)        |   |
-|   |  GET  /content/:chapterId           |   |  POST /content/upsert (content_admin) |   |
-|   |  GET  /search?q=...                 |   |  POST /upload-pdf     (Cloudinary)    |   |
-|   +-------------------------------------+   |  POST /upload-document (Mammoth/Cloud)|   |
-|   |       AUTH ROUTES (/api/auth)       |   |  POST /generate-summary (Gemini AI)   |   |
-|   |  POST /login | /logout | GET /me    |   +---------------------------------------+   |
-+-----------------------------------------------------------------------------------------+
-                                 |                                 |
-                Mongoose Queries & Aggregations       External API Streams
-                                 v                                 v
-+------------------------------------+        +-------------------------------------------+
-|          MONGODB DATABASE          |        |          EXTERNAL CLOUD SERVICES          |
-|  - Users     (Password hashes)     |        |                                           |
-|  - Sessions  (TTL auto-expiration) |        |  - Cloudinary: Raw PDF Storage & Delivery |
-|  - Subjects  (Catalog & semester)  |        |  - Google Gemini: 1.5 Flash Summarization |
-|  - Units     (Syllabus & chapters) |        +-------------------------------------------+
-|  - Contents  (Notes, PYQs, Quizzes)|
-+------------------------------------+
++-------------------------------------------------------------------------------------------------------------------------+
+|                                                    CLIENT BROWSER                                                       |
+|                                                                                                                         |
+|   +----------------------------------------------------+    +-------------------------------------------------------+   |
+|   |             STUDENT PORTAL (App.jsx)               |    |             ADMIN DASHBOARD (AdminDashboard)          |   |
+|   |  - Course Selector (localStorage)                  |    |  - Cascading 6-Tier Academic Selector                 |   |
+|   |  - Semester Subject Accordion                      |    |  - Document Upload (PDF / DOCX with Cloudinary/Multer)|   |
+|   |  - Tab 1: Study Material (Markdown + Attachments)  |    |  - Text Extraction & Notes Cleaner Studio             |   |
+|   |  - Tab 2: Study Resources (Short/Topics/Defs/Rev)  |    |  - Safe AI Resource Generator (Gemini 2.0/1.5 Flash)  |   |
+|   |  - Tab 3: Past Papers (Embedded Cloudinary PDF)    |    |  - Staging Draft Studio & 20-MCQ Question Bank Editor |   |
+|   |  - Tab 4: Practice Quiz (Random 5 MCQs + Scoring)  |    |  - Atomic Publication Guard & Rollback Safety         |   |
+|   |  - Command Search Palette (Ctrl+K)                 |    |  - Session Auth Gate (HttpOnly Cookie)                |   |
+|   +----------------------------------------------------+    +-------------------------------------------------------+   |
++-------------------------------------------------------------------------------------------------------------------------+
+                                 |                                                                 |
+                 HTTP (Credentials: include)                                       HTTP (HttpOnly Cookie: studs_session)
+                                 v                                                                 v
++-------------------------------------------------------------------------------------------------------------------------+
+|                                                EXPRESS BACKEND (Node.js)                                                |
+|                                                                                                                         |
+|   [CORS Whitelist] ---> [cookieParser] ---> [Rate Limiter] ---> [Origin Verifier] ---> [authMiddleware (RBAC)]          |
+|                                                                                                                         |
+|   +----------------------------------------------------+    +-------------------------------------------------------+   |
+|   |               PUBLIC ROUTES (/api)                 |    |              PROTECTED ROUTES (/api/admin)            |   |
+|   |  GET  /subjects/:semester                          |    |  POST /subject                (super_admin)           |   |
+|   |  GET  /units/:subjectId                            |    |  POST /unit                   (super_admin)           |   |
+|   |  GET  /content/:chapterId                          |    |  POST /content/upsert         (content_admin)         |   |
+|   |  GET  /search?q=...                                |    |  POST /upload-pdf             (Cloudinary stream)     |   |
+|   |                                                    |    |  POST /upload-notes-pdf       (Multer + Cloudinary)   |   |
+|   |              QUIZ ROUTES (/api/quiz)               |    |  POST /upload-document        (Mammoth DOCX parser)   |   |
+|   |  GET  /quiz/:chapterId/attempt (Random 5 MCQs)     |    |  POST /extract-pdf-text       (pdf-parse / Gemini OCR)|   |
+|   |  POST /quiz/:chapterId/submit  (Score & Explain)   |    |  POST /clean-extracted-text   (noteCleanerService)    |   |
+|   |                                                    |    |  GET  /content/:id/pipeline/status (Pipeline Monitor) |   |
+|   |              AUTH ROUTES (/api/auth)               |    |  POST /content/:id/pipeline/generate (Staging Draft)  |   |
+|   |  POST /login | POST /logout | GET /me              |    |  PUT  /content/:id/draft      (Admin Manual Edit)     |   |
+|   |                                                    |    |  POST /content/:id/pipeline/publish (Atomic Promote)  |   |
+|   +----------------------------------------------------+    +-------------------------------------------------------+   |
++-------------------------------------------------------------------------------------------------------------------------+
+                                 |                                                                 |
+                 Mongoose Queries & Aggregations                                       External Cloud Services
+                                 v                                                                 v
++--------------------------------------------------------+        +-------------------------------------------------------+
+|                    MONGODB DATABASE                    |        |                EXTERNAL CLOUD SERVICES                |
+|  - Users     (Password hashes with constant-time verify|        |                                                       |
+|  - Sessions  (HMAC-SHA256 tokens, TTL auto-expiry)     |        |  - Cloudinary: Raw PDF Document Storage & CDN         |
+|  - Subjects  (Catalog, codes, semester indexing)       |        |  - Google Gemini: 2.0 Flash / 1.5 Flash / 1.5 Pro     |
+|  - Units     (Syllabus units, chapters, contact hours) |        |    (Source-Grounded Resource Generation & OCR)        |
+|  - Contents  (Published materials, staging drafts,     |        +-------------------------------------------------------+
+|               semantic chunks, pipeline status)        |
++--------------------------------------------------------+
 ```
 
 ---
 
-### 1. Student Portal Workflow (Public Experience)
+### 1. Student Portal Experience (Public Flow)
 
 1. **Course Configuration**:
    - On initial launch, the portal checks `localStorage` for `userCourse`.
@@ -207,16 +264,20 @@ For every single chapter, STUDS unifies **four dedicated study modules**:
 4. **Content Consumption & Interaction**:
    - Selecting a chapter calls `fetchContentByChapter(chapterId)`.
    - The user is presented with **4 coordinated tabs**:
-     - **Tab 1: Study Material**: Formatted Markdown notes rendered via `ReactMarkdown`. If an AI summary is available, it is showcased in a prominent "AI Chapter Synthesis" banner. Published notes are listed with document download attachments.
-     - **Tab 2: Short Notes**: Bullet points specifically targeted for fast pre-exam review.
+     - **Tab 1: Study Material**: Textbook-level formatted Markdown notes rendered via `ReactMarkdown` and `remark-gfm`. If an AI summary is available, it is showcased in a prominent "AI Chapter Synthesis" banner. Published notes are listed with document download and preview attachments.
+     - **Tab 2: Study Resources**: A comprehensive 4-in-1 study resource hub:
+       - *Short Notes*: Concise revision bullet points.
+       - *Important Topics*: High-weightage exam topics.
+       - *Key Definitions*: Academic terms with clear definitions.
+       - *Exam Revision Guide*: High-yield formulas, comparisons, and summary guide.
      - **Tab 3: Past Papers (PYQs)**: Historical exam papers indexed by year. Clicking a year loads the PDF inside a sandboxed iframe streamed from Cloudinary.
-     - **Tab 4: Practice Quiz**: An interactive quiz engine. Students answer 4-option multiple choice questions sequentially, submit their attempt, and receive an instant score with an answer key and explanation review.
+     - **Tab 4: Practice Quiz**: An interactive quiz engine. Clicking start fetches 5 random questions without leaking answers (`/api/quiz/:chapterId/attempt`). Students answer sequentially, submit their attempt (`/api/quiz/:chapterId/submit`), and receive an instant score with an answer key and explanation review.
 5. **Theme Switching**:
    - A single-click theme switcher toggles between Light and Dark mode, applying the `.dark` class to `document.documentElement` and persisting the preference in `localStorage`.
 
 ---
 
-### 2. Admin Workspace Workflow (Protected Ingestion)
+### 2. Admin Learning Resources Studio (Protected Workflow)
 
 1. **Gatekeeper & Session Validation**:
    - Navigating to `/admin` invokes `getCurrentUser()` (`GET /api/auth/me`).
@@ -225,30 +286,146 @@ For every single chapter, STUDS unifies **four dedicated study modules**:
    - To eliminate orphaned data in MongoDB, the dashboard enforces a strict cascading state machine:
      $$\text{Department} \longrightarrow \text{Course} \longrightarrow \text{Semester} \longrightarrow \text{Subject} \longrightarrow \text{Unit} \longrightarrow \text{Chapter}$$
    - Changing any higher-level item instantly resets all lower-level selections.
-3. **Content Ingestion & Authoring**:
-   - **Notes Creation**: Admins can type Markdown directly or upload `.docx` / `.md` files. `.docx` files are parsed via Mammoth into HTML and converted into clean Markdown via Turndown before storage.
-   - **AI Synthesis**: Admins click **Generate AI Summary**, which sends the chapter markdown to Gemini 1.5 Flash to automatically create a 5-point digest.
-   - **PDF Uploads**: Uploading a past question paper streams the file buffer through Multer memory storage directly to Cloudinary, attaching the secure HTTPS URL to the chapter's `pyqLinks`.
-   - **Quiz Authoring**: Admins add multiple-choice questions, set 4 possible options, and select the correct answer.
-4. **Atomic Persistence**:
-   - Clicking **Save Chapter Materials** calls `POST /api/admin/content/upsert`.
-   - The backend performs an atomic `findOneAndUpdate({ chapterId }, payload, { upsert: true })` in MongoDB.
+3. **Document Ingestion & Text Extraction**:
+   - Admins upload PDF or DOCX lecture notes.
+   - Text is extracted via `extractPdfText` (`POST /api/admin/extract-pdf-text`) and cleaned using `cleanExtractedText` (`POST /api/admin/clean-extracted-text`).
+   - Cleaned Markdown, extraction statistics, and syllabus coverage percentages are presented in an interactive editor.
+4. **AI Generation into Staging Draft**:
+   - Admins trigger AI generation (`POST /api/admin/content/:chapterId/pipeline/generate`).
+   - Gemini synthesizes full notes, short notes, topics, definitions, revision guides, and up to 20 MCQs into isolated staging draft fields (`draftStudyResources`, `draftQuizQuestions`, `draftFullNotesMarkdown`).
+   - Published resources visible to students remain completely unchanged.
+5. **Manual Review & Editing**:
+   - Admins can inspect and modify draft resources in the Learning Resources Studio.
+   - Draft edits are saved via `PUT /api/admin/content/:chapterId/draft`.
+6. **Explicit Atomic Publication**:
+   - Clicking **Approve & Publish to Students** triggers `POST /api/admin/content/:chapterId/pipeline/publish`.
+   - The backend validates all questions, promotes staging drafts to published status, syncs backward-compatible fields (`shortNotes`, `quizData`), and clears staging drafts in an atomic MongoDB operation.
 
 ---
 
-### 3. Authentication & Stateful Session Lifecycle
+### 3. Safe 10-Stage PDF-to-AI Generation Pipeline
 
-Unlike standard stateless JWT setups that cannot be revoked without maintaining blacklists, STUDS utilizes **database-backed, stateful sessions**:
+The STUDS pipeline (`backend/services/pipelineService.js`) orchestrates a safe, 10-stage process ensuring data integrity, source grounding, and zero student disruption:
+
+```
+[ Stage 1: PDF Upload & MIME Validation ]
+                   |
+                   v
+[ Stage 2: Dual Text Extraction (pdf-parse / Gemini OCR) ]
+                   |
+                   v
+[ Stage 3: Source-Text Validation (>75% printable, >=35 words) ]
+                   |
+                   v
+[ Stage 4: Missing-Resource Detection (Targeted Generation) ]
+                   |
+                   v
+[ Stage 5: Gemini Source-Grounded Generation (Temp 0.2) ]
+                   |
+                   v
+[ Stage 6: Structured Output Validation & Shortfall Reporting ]
+                   |
+                   v
+[ Stage 7: Staging Draft Persistence (Isolated from Students) ]
+                   |
+                   v
+[ Stage 8: Admin Studio Review & Manual In-Line Editing ]
+                   |
+                   v
+[ Stage 9: Explicit Atomic Publication (Promote to Production) ]
+                   |
+                   v
+[ Stage 10: Fault-Tolerant Retry without Re-Uploading ]
+```
+
+1. **Stage 1 (Upload & Validation)**: Validates genuine PDF magic bytes (`%PDF-`) and enforces a 35MB ceiling.
+2. **Stage 2 (Text Extraction & OCR)**: Parses text streams using `pdf-parse`. If the document is a scanned image with no text layer, automatically invokes Google Gemini Multimodal OCR.
+3. **Stage 3 (Source Validation)**: Analyzes printable character ratios (>75%) and word density to reject binary corrupted files.
+4. **Stage 4 (Missing Detection)**: Checks which resources already exist so the system does not regenerate or overwrite existing valid assets unless explicitly instructed.
+5. **Stage 5 (Source Grounding)**: Prompts Gemini with strict system instructions to derive content solely from the provided text.
+6. **Stage 6 (Structured Output Validation)**: Validates MCQ options (exactly 4 distinct choices), verifies verbatim correct answers, deduplicates questions, and records shortfall notices if fewer than 20 questions can be strictly supported.
+7. **Stage 7 (Staging Isolation)**: Saves generated resources to `draftStudyResources`, `draftQuizQuestions`, and `draftFullNotesMarkdown`. The public API filters these out, keeping student views safe.
+8. **Stage 8 (Admin Review)**: Provides an interactive studio interface where admins can edit, add, or delete drafted questions and notes.
+9. **Stage 9 (Atomic Publication)**: Validates the draft question bank, assigns published status, updates `studyResources` and `quizQuestions`, and clears drafts atomically.
+10. **Stage 10 (Fault Tolerance & Retry)**: If generation fails, the original PDF and extracted text are preserved, allowing administrators to retry without re-uploading large PDF assets.
+
+---
+
+### 4. Source Grounding, Shortfall Reporting & Hallucination Prevention
+
+A common failure in academic AI systems is **hallucination**—inventing examination questions or definitions when the source document is brief or lacks detail. STUDS enforces strict safeguards:
+- **Temperature Control (`0.2`)**: Gemini runs at low temperature to favor factual reproduction over creative extrapolation.
+- **Shortfall Reporting**: If an uploaded PDF chapter supports only 12 legitimate questions, Gemini returns 12 questions and populates `shortfallReason`:
+  > *"The provided source text (8,420 characters) supported 12 distinct, verified questions without hallucinating duplicate or ungrounded questions."*
+- **Shortfall Notice Banner**: The admin dashboard renders a dedicated amber alert notifying admins of the shortfall, allowing them to manually add questions or supply additional reference text.
+
+---
+
+### 5. Intelligent Notes Cleaner & Syllabus Coverage Engine
+
+Raw text extracted from PDFs often suffers from header contamination, broken line breaks, and missing formatting. The STUDS Note Cleaner (`backend/services/noteCleanerService.js`) resolves this:
+- **Boilerplate Removal**: Regular expressions strip running headers, footers, and page counters (`-- 1 of 45 --`).
+- **Markdown Header Hierarchy**: Maps document outlines into semantic Markdown headings (`#`, `##`, `###`, `####`).
+- **Table Transformation**: Detects tabular data and aligns columns into valid GitHub Flavored Markdown tables.
+- **Diagram Preservation**: Preserves ASCII network topologies and system architecture charts in fixed-width Markdown code blocks.
+- **Syllabus Coverage Verification**: Cross-references cleaned notes against predefined syllabus topics (e.g., Semester 5 Computer Networks: OSI Model, TCP/IP, Routing Protocols) and computes a coverage percentage.
+
+---
+
+### 6. Secure Chapter Quiz Engine & Anti-Cheating Architecture
+
+Traditional client-side quiz applications expose correct answers in JavaScript state or browser network payloads. STUDS implements a secure two-phase quiz protocol:
+
+```
+[ Student requests quiz attempt ]
+               |
+               v
+  GET /api/quiz/:chapterId/attempt
+               |
+               +---> Server selects 5 random questions from bank
+               +---> STRIPS "correctAnswer" and "explanation"
+               |
+               v
+[ Student receives sanitized questions ]
+[ Answers questions sequentially in React UI ]
+               |
+               v
+  POST /api/quiz/:chapterId/submit
+  Body: { attemptId, answers: [...] }
+               |
+               +---> Server evaluates answers against database
+               +---> Calculates raw score & percentage
+               +---> UNLOCKS "correctAnswer" and "explanation"
+               |
+               v
+[ Student receives graded scorecard with full answer explanations ]
+```
+
+---
+
+### 7. Semantic Text Chunking & RAG Preparation
+
+Extracted chapter text is automatically partitioned by `pdfTextExtractor.js` into semantic chunks (~600–1200 characters) preserving paragraph boundaries. Each chunk records:
+- `chunkIndex`: Positional index within the document.
+- `text`: Cleaned academic text content.
+- `wordCount`: Word count per chunk.
+
+These chunks are stored in `notes.$.extractedChunks` within MongoDB, providing the foundation for future vector embeddings, retrieval-augmented generation (RAG), and cited doubt solving.
+
+---
+
+### 8. Authentication & Stateful Session Security
+
+STUDS avoids insecure stateless JWT implementations in favor of **database-backed, stateful sessions**:
 
 1. **Login Request**: Admin submits `email` and `password` to `POST /api/auth/login`.
-2. **Rate Limiting**: `express-rate-limit` checks if the IP has exceeded 10 attempts in 15 minutes.
+2. **Rate Limiting**: `express-rate-limit` enforces a maximum of 10 requests per 15 minutes per IP.
 3. **Constant-Time Verification**:
    - `User.findOne({ email }).select('+passwordHash')` looks up the user.
-   - If the user does not exist, `bcrypt.compare` runs against a dummy hash to prevent timing attacks.
+   - If the user does not exist, `bcrypt.compare` executes against a dummy hash to prevent timing attacks.
 4. **Token Generation & Peppered HMAC**:
    - The server creates a cryptographically secure 48-byte random token (`crypto.randomBytes(48).toString('base64url')`).
    - The database stores **only** an HMAC-SHA256 hash of this token combined with the server pepper (`SESSION_TOKEN_PEPPER`).
-   - If the database is compromised, the attacker cannot forge session cookies because the pepper remains secret.
 5. **Secure Cookie Issuance**:
    - The raw token is sent back inside the `studs_session` cookie:
      - `HttpOnly: true` (Inaccessible to JavaScript, immune to XSS)
@@ -264,44 +441,7 @@ Unlike standard stateless JWT setups that cannot be revoked without maintaining 
 
 ---
 
-### 4. Document Parsing & Storage Pipeline
-
-```
-[ Admin uploads .docx or .pdf ]
-             |
-             v
- [ Multer Memory Storage Buffer ]
-             |
-             +----------------------------------------------+
-             |                                              |
-      (If .docx Document)                            (If .pdf Document)
-             |                                              |
-             v                                              v
- [ Mammoth: In-Memory HTML ]                  [ Cloudinary upload_stream ]
-             |                                              |
-             v                                              v
- [ Turndown: Convert to Markdown ]            [ Returns HTTPS Raw Asset URL ]
-             |                                              |
-             +----------------------+-----------------------+
-                                    |
-                                    v
-                     [ MongoDB Content Collection ]
-```
-
----
-
-### 5. AI Chapter Summarization Pipeline
-
-1. The admin composes or pastes chapter markdown notes.
-2. The frontend triggers `POST /api/admin/generate-summary` with `{ chapterContentMarkdown }`.
-3. The backend validates that content does not exceed 50,000 characters.
-4. The service sends the content to **Google Gemini 1.5 Flash** with an academic system prompt:
-   > *"Synthesize the educational text into exactly 5 clear, high-yield bullet points for college exam revision."*
-5. The generated markdown summary is returned to the frontend editor for preview and saved alongside the chapter materials.
-
----
-
-### 6. Global Command Search (`Ctrl + K`) Engine
+### 9. Global Command Search (`Ctrl + K`) Engine
 
 1. The user presses `Ctrl + K` (or `Cmd + K`) or clicks the search bar in the header.
 2. The user types a query; `CommandSearch.jsx` employs a **250ms debounce** to prevent server query flooding.
@@ -346,10 +486,12 @@ Represents a syllabus unit belonging to a subject, containing multiple chapters.
 ```
 
 ### 3. `Content` Model (`backend/models/Content.js`)
-Stores all educational materials associated with a specific chapter.
+Stores all educational materials associated with a specific chapter, including published assets, staging drafts, extracted chunks, and pipeline status.
 ```javascript
 {
   chapterId:         { type: String, required: true, unique: true, index: true },
+  
+  // Published Core Content
   fullNotesMarkdown: { type: String, default: '' },
   shortNotes:        [String],
   aiSummary:         { type: String, default: null },
@@ -362,17 +504,67 @@ Stores all educational materials associated with a specific chapter.
     options:       { type: [String], validate: v => v.length === 4 },
     correctAnswer: { type: String, required: true }
   }],
+  quizQuestions: [{
+    question:         { type: String, required: true },
+    options:          { type: [String], validate: v => v.length === 4 },
+    correctAnswer:    { type: String, required: true },
+    explanation:      { type: String, default: '' },
+    difficulty:       { type: String, enum: ['easy', 'medium', 'hard'], default: 'medium' },
+    status:           { type: String, enum: ['draft', 'published'], default: 'draft' },
+    isManuallyEdited: { type: Boolean, default: false }
+  }],
+  studyResources: {
+    shortNotes:        [String],
+    importantTopics:   [String],
+    keyDefinitions:    [{ term: String, definition: String, isManuallyEdited: Boolean }],
+    examRevisionNotes: String,
+    status:            { type: String, enum: ['draft', 'published'], default: 'draft' },
+    generatedAt:       { type: Date, default: Date.now },
+    publishedAt:       Date,
+    approvedBy:        { type: ObjectId, ref: 'User' },
+    shortfallReason:   String,
+    sourceLimitations: [String]
+  },
   notes: [{
     title:                { type: String, required: true },
-    content:              { type: String, required: true },
+    content:              { type: String, default: '' },
     subject:              String,
     unit:                 String,
     chapter:              String,
     status:               { type: String, enum: ['draft', 'published'], default: 'draft' },
-    originalDocumentUrl:  String,
-    originalDocumentName: String,
-    createdBy:            { type: ObjectId, ref: 'User' }
-  }]
+    fileUrl:              String,
+    fileName:             String,
+    fileSize:             Number,
+    filePublicId:         String,
+    rawExtractedText:     { type: String, default: '' },
+    extractedMarkdown:    { type: String, default: '' },
+    textExtractionStatus: { type: String, enum: ['none', 'pending', 'extracting', 'success', 'no_text', 'failed'], default: 'none' },
+    extractedChunks:      [{ chunkIndex: Number, text: String, wordCount: Number }],
+    pageCount:            { type: Number, default: 0 },
+    charCount:            { type: Number, default: 0 },
+    wordCount:            { type: Number, default: 0 },
+    processingError:      String
+  }],
+
+  // Isolated Staging Draft Resources
+  draftStudyResources:    studyResourcesSchema,
+  draftQuizQuestions:     [quizQuestionSchema],
+  draftFullNotesMarkdown: { type: String, default: '' },
+
+  // Pipeline Tracking & Shortfall Reporting
+  processingStatus: {
+    type: String,
+    enum: ['idle', 'uploading', 'uploaded', 'extracting', 'extracted', 'generating', 'draft_ready', 'published', 'failed'],
+    default: 'idle'
+  },
+  processingError:  { type: String, default: '' },
+  lastProcessingAt: Date,
+  shortfallNotice: {
+    hasShortfall:  { type: Boolean, default: false },
+    expectedCount: { type: Number, default: 20 },
+    actualCount:   { type: Number, default: 0 },
+    reason:        { type: String, default: '' }
+  }
 }
 // Full-text compound index: { fullNotesMarkdown: 'text', shortNotes: 'text' }
 ```
@@ -412,18 +604,24 @@ Persists authenticated server sessions with automatic TTL expiration.
 | :--- | :--- | :--- | :--- |
 | `GET` | `/api/subjects/:semester` | `?course=...` | Fetches deduplicated, ordered subjects for the specified semester and course. |
 | `GET` | `/api/units/:subjectId` | — | Fetches syllabus units and chapters for the chosen subject. |
-| `GET` | `/api/content/:chapterId` | — | Fetches chapter materials (notes, short notes, PYQs, quizzes, AI summary). Filters notes to published only. |
+| `GET` | `/api/content/:chapterId` | — | Fetches published chapter materials. Redacts draft staging fields and unreleased quiz answers. |
 | `GET` | `/api/search` | `?q=search_term` | Debounced full-text search across all notes with relevance scoring. |
 | `GET` | `/` | — | Health check endpoint returning `{"status":"healthy","message":"API active"}`. |
 
-### Authentication Routes (`/api/auth`)
+### Student Quiz Practice Endpoints (`/api/quiz`)
+| Method | Endpoint | Access Level | Description |
+| :--- | :--- | :--- | :--- |
+| `GET` | `/api/quiz/:chapterId/attempt` | Public | Pulls 5 random questions from chapter question bank with answers and explanations redacted. |
+| `POST` | `/api/quiz/:chapterId/submit` | Public | Validates student answers server-side, calculates percentage score, and reveals explanations. |
+
+### Authentication Endpoints (`/api/auth`)
 | Method | Endpoint | Access Level | Description |
 | :--- | :--- | :--- | :--- |
 | `POST` | `/api/auth/login` | Public (Rate-limited) | Validates credentials, issues `studs_session` HttpOnly cookie. |
 | `POST` | `/api/auth/logout` | Authenticated | Revokes session token in MongoDB and clears browser cookie. |
 | `GET` | `/api/auth/me` | Authenticated | Returns current authenticated user profile (`id`, `email`, `role`). |
 
-### Admin Management Routes (`/api/admin`)
+### Admin Pipeline & Content Routes (`/api/admin`)
 *All admin endpoints require valid session authentication and trusted origin verification.*
 
 | Method | Endpoint | Allowed Roles | Description |
@@ -436,7 +634,16 @@ Persists authenticated server sessions with automatic TTL expiration.
 | `PUT` | `/api/admin/content/:chapterId/notes/:noteId` | `content_admin`, `super_admin` | Updates title, content, or published status of a note. |
 | `DELETE` | `/api/admin/content/:chapterId/notes/:noteId` | `content_admin`, `super_admin` | Deletes a study note. |
 | `POST` | `/api/admin/upload-pdf` | `content_admin`, `super_admin` | Streams a PDF past paper to Cloudinary and returns its secure URL. |
+| `POST` | `/api/admin/upload-notes-pdf` | `content_admin`, `super_admin` | Uploads and replaces notes PDF attachment with Cloudinary streaming. |
 | `POST` | `/api/admin/upload-document` | `content_admin`, `super_admin` | Uploads DOCX/PDF/MD, parses DOCX to Markdown, streams to Cloudinary. |
+| `POST` | `/api/admin/extract-pdf-text` | `content_admin`, `super_admin` | Server-side PDF extraction via `pdf-parse` with Gemini OCR fallback (Stage 2 & 3). |
+| `POST` | `/api/admin/clean-extracted-text` | `content_admin`, `super_admin` | Cleans raw text into structured Markdown and runs syllabus verification. |
+| `GET` | `/api/admin/content/:id/pipeline/status` | `content_admin`, `super_admin` | Returns complete pipeline, extraction, draft staging, and published overview. |
+| `POST` | `/api/admin/content/:id/pipeline/generate` | `content_admin`, `super_admin` | Synthesizes missing or targeted resources into staging drafts via Gemini. |
+| `POST` | `/api/admin/content/:id/pipeline/retry` | `content_admin`, `super_admin` | Re-attempts generation from existing extracted text without re-uploading. |
+| `PUT` | `/api/admin/content/:id/draft` | `content_admin`, `super_admin` | Saves admin manual edits to staging draft without publishing to students. |
+| `POST` | `/api/admin/content/:id/pipeline/publish` | `content_admin`, `super_admin` | Explicit atomic promotion of approved draft to published student view. |
+| `GET` | `/api/admin/content/:id/study-resources` | `content_admin`, `super_admin` | Inspects existing resources, draft staging, and question bank. |
 | `POST` | `/api/admin/generate-summary` | `content_admin`, `super_admin` | Synthesizes chapter markdown into a 5-point summary via Google Gemini. |
 
 ---
@@ -447,7 +654,7 @@ Persists authenticated server sessions with automatic TTL expiration.
 college study material project/
 ├── .gitignore                          # Global git ignore configurations
 ├── README.md                           # Master project documentation
-├── projectinfo.md                      # Detailed architectural references & notes
+├── projectinfo.md                      # Detailed technical architecture documentation
 ├── backend/                            # Express.js REST API server
 │   ├── .env                            # Backend environment secrets (never commit)
 │   ├── .env.example                    # Template for backend environment variables
@@ -466,24 +673,34 @@ college study material project/
 │   │   ├── authMiddleware.js           # requireAuth, requireRole, requireTrustedOrigin
 │   │   └── uploadMiddleware.js         # Multer in-memory storage & PDF/DOCX MIME filter
 │   ├── models/
-│   │   ├── Content.js                  # Chapter materials, notes, quizzes, PYQs schema
+│   │   ├── Content.js                  # Chapter materials, notes, quizzes, PYQs, drafts schema
 │   │   ├── Session.js                  # Database-backed session schema with TTL index
 │   │   ├── Subject.js                  # Subject schema with department & semester indexing
 │   │   ├── Unit.js                     # Unit and chapter sub-document schemas
 │   │   └── User.js                     # User account schema with password hashes and roles
 │   ├── routes/
-│   │   ├── adminRoutes.js              # Protected administrative endpoints
+│   │   ├── adminRoutes.js              # Protected administrative & pipeline studio endpoints
 │   │   ├── authRoutes.js               # Authentication routes (login, logout, session check)
-│   │   └── portalRoutes.js             # Public student portal query & search routes
+│   │   └── portalRoutes.js             # Public student portal query & quiz routes
 │   ├── services/
-│   │   └── aiService.js                # Google Gemini 1.5 Flash summarization logic
+│   │   ├── aiService.js                # Google Gemini 1.5 Flash 5-point summarization logic
+│   │   ├── noteCleanerService.js       # Notes cleaner & syllabus coverage verification
+│   │   ├── pdfTextExtractor.js         # Dual extraction (pdf-parse / Gemini OCR) & semantic chunking
+│   │   ├── pipelineService.js          # 10-stage safe PDF-to-AI pipeline orchestration
+│   │   └── studyResourcesService.js    # Grounded Gemini generation, shortfall reporting, MCQ check
 │   └── scripts/
 │       ├── createSuperAdmin.js         # CLI tool to securely initialize the first super-admin
 │       ├── importDocx.js               # Utility script to test Mammoth DOCX to Markdown conversion
-│       ├── securityTest.js             # Automated security regression testing suite
+│       ├── inspectRawNotes.js          # CLI tool to inspect extracted note buffers and chunks
+│       ├── securityTest.js             # Automated security regression testing suite (42 tests)
 │       ├── seed.js                     # Database seeding script for sample curricula
 │       ├── syncSem5.js                 # Semester 5 subject synchronization utility
-│       └── syncSem5Syllabus.js         # Full Computer Networks & Semester 5 syllabus seeder
+│       ├── syncSem5Syllabus.js         # Full Computer Networks & Semester 5 syllabus seeder
+│       ├── testCleanedNotesWorkflow.js # Automated verification for note cleaner service
+│       ├── testNoteCleaner.js          # Unit tests for note cleaning regex rules
+│       ├── testPhase1PdfWorkflow.js    # Automated tests for PDF upload & streaming
+│       ├── testSafePdfPipeline.js      # 37-point test suite for safe pipeline orchestration
+│       └── testStudyResourcesWorkflow.js# Test suite for Gemini resource synthesis
 └── frontend/                           # React 19 + Vite + Tailwind CSS Single-Page Application
     ├── .gitignore                      # Frontend ignore rules (dist, node_modules)
     ├── eslint.config.js                # ESLint rules and React hooks configuration
@@ -492,14 +709,14 @@ college study material project/
     ├── package-lock.json               # Frontend dependency lockfile
     ├── vercel.json                     # SPA routing rewrite rules for Vercel deployment
     ├── vite.config.js                  # Vite configuration with React and Tailwind v4 plugins
-    ├── public/                         # Public static assets
+    ├── public/                         # Public static assets & vector favicon
     └── src/
-        ├── App.jsx                     # Root application, routing, Portal UI, and tab viewer
-        ├── index.css                   # Global styles importing Tailwind CSS v4 & dark mode rules
+        ├── App.jsx                     # Root application, routing, Portal UI, and 4-tab viewer
+        ├── index.css                   # Global styles importing Tailwind CSS v4 & theme tokens
         ├── main.jsx                    # React root rendering entry point
         ├── assets/                     # Static media assets and images
         ├── components/
-        │   ├── AdminDashboard.jsx      # 6-step cascading admin workspace with authoring modules
+        │   ├── AdminDashboard.jsx      # Cascading admin workspace with Learning Resources Studio
         │   └── CommandSearch.jsx       # Global Ctrl+K command palette modal with debounced search
         └── services/
             └── api.js                  # Centralized fetch wrapper (credentials: 'include')
@@ -512,8 +729,8 @@ college study material project/
 ### Prerequisites
 - **Node.js**: v18.0.0 or higher
 - **MongoDB**: Community Server running locally on port 27017, or a MongoDB Atlas cloud URI
-- **Cloudinary Account**: Required for uploading past examination PDF papers
-- **Google Gemini API Key**: Required for AI chapter summarization features
+- **Cloudinary Account**: Required for uploading past examination PDF papers and notes attachments
+- **Google Gemini API Key**: Required for AI chapter study resource generation and OCR
 - **Git**
 
 ---
@@ -550,7 +767,7 @@ CLOUDINARY_CLOUD_NAME=your_cloudinary_cloud_name
 CLOUDINARY_API_KEY=your_cloudinary_api_key
 CLOUDINARY_API_SECRET=your_cloudinary_api_secret
 
-# Google Gemini API Key (for AI chapter summarization)
+# Google Gemini API Key (for AI chapter summarization and OCR)
 GEMINI_API_KEY=your_gemini_api_key
 ```
 
@@ -567,7 +784,7 @@ npm install
 # Seed sample curricula (Computer Science & AI tracks across Semesters)
 npm run seed
 
-# (Optional) Seed the complete Semester 5 Computer Networks syllabus units & chapters
+# Seed the complete Semester 5 Computer Networks syllabus units & chapters
 node scripts/syncSem5Syllabus.js
 ```
 
@@ -594,7 +811,7 @@ $env:SUPER_ADMIN_EMAIL="admin@studs.app"; $env:SUPER_ADMIN_PASSWORD="YourSecureP
 ```bash
 npm run dev
 ```
-The server will boot on **`http://localhost:5001`** (or your custom `PORT`).  
+The server will boot on **`http://localhost:5001`** (or your configured `PORT`).  
 Verify the health check by navigating to: `http://localhost:5001/` &rarr; `{"status":"healthy","message":"API active"}`.
 
 ---
@@ -613,12 +830,12 @@ The Vite development server will start at: **`http://localhost:5173`**.
 
 ### Accessing the Web Application
 - **Student Portal**: Open [http://localhost:5173](http://localhost:5173) in your browser.
-- **Admin Workspace**: Open [http://localhost:5173/admin](http://localhost:5173/admin) and log in with the super-admin credentials created in Step 4.
+- **Admin Workspace**: Open [http://localhost:5173/admin](http://localhost:5173/admin) and log in with your super-admin credentials.
 - **Global Search**: Press `Ctrl + K` (or `Cmd + K` on Mac) anywhere on the student portal.
 
 ---
 
-## ⚡ Automation Scripts & CLI Utilities
+## ⚡ Automation Scripts & CLI Test Suites
 
 Located in `backend/scripts/`:
 
@@ -629,23 +846,28 @@ Located in `backend/scripts/`:
 | `syncSem5Syllabus.js` | `node scripts/syncSem5Syllabus.js` | Synchronizes syllabus data and chapter outlines for Semester 5 Computer Networks. |
 | `syncSem5.js` | `node scripts/syncSem5.js` | Cleans up legacy subject codes and normalizes Semester 5 curriculum ordering. |
 | `importDocx.js` | `node scripts/importDocx.js` | Demonstrates and tests Word `.docx` to Markdown conversion using Mammoth & Turndown. |
-| `securityTest.js` | `node scripts/securityTest.js` | Automated end-to-end security test suite verifying authentication, RBAC, and origin protection. |
-| `testPhase1PdfWorkflow.js` | `node scripts/testPhase1PdfWorkflow.js` | 47-point automated test suite verifying PDF upload, magic bytes, draft/publish lifecycle, text extraction, and persistence. |
+| `inspectRawNotes.js` | `node scripts/inspectRawNotes.js` | Inspects extracted note buffers and verifies chunk splitting. |
+| `securityTest.js` | `node scripts/securityTest.js` | Automated 42-point security test suite verifying session auth, RBAC, and origin protection. |
+| `testSafePdfPipeline.js` | `node scripts/testSafePdfPipeline.js` | 37-point automated test suite verifying the 10-stage safe pipeline and staging draft isolation. |
+| `testCleanedNotesWorkflow.js`| `node scripts/testCleanedNotesWorkflow.js`| End-to-end tests for boilerplate cleaning, markdown tables, and syllabus coverage. |
+| `testStudyResourcesWorkflow.js`| `node scripts/testStudyResourcesWorkflow.js`| Tests Gemini generation, missing-resource detection, and shortfall alerts. |
 
 ---
 
-## 🔒 Security Implementations
+## 🔒 Security & Isolation Principles
 
-1. **Stateful Session Storage**: Avoids insecure client-side token storage (like storing JWTs in `localStorage` where they are vulnerable to XSS). All sessions live in MongoDB with HMAC-SHA256 hashed keys.
-2. **Double-Hashed Secrets**: Session tokens are hashed with a server-side pepper secret. Even with database read access, an attacker cannot construct valid authentication cookies.
-3. **Automated Session Eviction**: MongoDB TTL indexes clean up expired session documents automatically without requiring cron jobs.
-4. **Timing Attack Protection**: Password verification uses constant-time bcrypt checks against a dummy hash when emails do not exist, preventing email enumeration.
-5. **Brute-Force Rate Limiting**: The login route is restricted to 10 requests per 15-minute window per IP.
-6. **Strict Origin Enforcement**: Cross-Origin requests are restricted to explicitly allowed origins defined in `FRONTEND_ORIGINS`.
-7. **Role-Based Guards**: Middleware routes strictly enforce access levels: `student`, `content_admin`, and `super_admin`.
+1. **Staging Draft Isolation**: Generated study resources are written to staging draft documents (`draftStudyResources`, `draftQuizQuestions`, `draftFullNotesMarkdown`). The student portal filters these out, guaranteeing that students only ever see verified, published curriculum content.
+2. **Cheating Prevention & Answer Redaction**: The `/api/quiz/:chapterId/attempt` endpoint strips `correctAnswer` and `explanation` from quiz payloads. Answers are evaluated exclusively on the server upon submission.
+3. **Stateful Session Storage**: Avoids vulnerable client-side JWT storage in `localStorage`. All sessions live in MongoDB with HMAC-SHA256 hashed keys.
+4. **Double-Hashed Secrets**: Session tokens are hashed with a server-side pepper secret. Even with database read access, an attacker cannot construct valid authentication cookies.
+5. **Automated Session Eviction**: MongoDB TTL indexes clean up expired session documents automatically without requiring cron jobs.
+6. **Timing Attack Protection**: Password verification uses constant-time bcrypt checks against a dummy hash when emails do not exist, preventing email enumeration.
+7. **Brute-Force Rate Limiting**: The login route is restricted to 10 requests per 15-minute window per IP.
+8. **Strict Origin Enforcement**: Cross-Origin requests are restricted to explicitly allowed origins defined in `FRONTEND_ORIGINS`.
+9. **Role-Based Guards**: Middleware routes strictly enforce access levels: `student`, `content_admin`, and `super_admin`.
 
 ---
 
 ## 📄 License
 
-This project is licensed under the **ISC License**. Developed for academic study material management and modern e-learning workflows.
+This project is licensed under the **ISC License**. Developed for academic study material management, curriculum orchestration, and interactive e-learning.
