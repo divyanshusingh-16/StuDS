@@ -17,7 +17,7 @@ const MONGO_URI = process.env.MONGO_URI;
 
 const configuredOrigins = (process.env.FRONTEND_ORIGINS || process.env.FRONTEND_URL || 'http://localhost:5173')
   .split(',')
-  .map((origin) => origin.trim())
+  .map((origin) => origin.trim().replace(/\/+$/, ''))
   .filter(Boolean);
 
 if (process.env.NODE_ENV === 'production' && configuredOrigins.length === 0) {

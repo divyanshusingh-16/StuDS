@@ -35,6 +35,7 @@ function getCookieOptions() {
     httpOnly: true,
     secure: isProduction,
     sameSite: isProduction ? 'none' : 'lax',
+    partitioned: isProduction,
     path: '/',
     maxAge: getSessionTtlMs(),
   };

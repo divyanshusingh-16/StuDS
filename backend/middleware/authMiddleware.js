@@ -2,10 +2,6 @@ const Session = require('../models/Session');
 const { User } = require('../models/User');
 const { SESSION_COOKIE_NAME, hashSessionToken } = require('../config/auth');
 
-const trustedOrigins = (process.env.FRONTEND_ORIGINS || process.env.FRONTEND_URL || 'http://localhost:5173')
-  .split(',')
-  .map((origin) => origin.trim())
-  .filter(Boolean);
 
 async function requireAuth(req, res, next) {
   try {
@@ -53,12 +49,37 @@ function requireRole(...roles) {
   };
 }
 
+function getTrustedOrigins() {
+  return (process.env.FRONTEND_ORIGINS || process.env.FRONTEND_URL || 'http://localhost:5173')
+    .split(',')
+    .map((origin) => origin.trim().replace(/\/+$/, ''))
+    .filter(Boolean);
+}
+
 function requireTrustedOrigin(req, res, next) {
+  const trusted = getTrustedOrigins();
   const origin = req.get('origin');
-  if (!origin || !trustedOrigins.includes(origin)) {
+  
+  if (origin) {
+    const cleanOrigin = origin.trim().replace(/\/+$/, '');
+    if (trusted.includes(cleanOrigin)) {
+      return next();
+    }
     return res.status(403).json({ error: 'Request origin is not allowed.' });
   }
-  return next();
+
+  // Fallback to Referer header if Origin is omitted by browser
+  const referer = req.get('referer');
+  if (referer) {
+    try {
+      const refererOrigin = new URL(referer).origin.replace(/\/+$/, '');
+      if (trusted.includes(refererOrigin)) {
+        return next();
+      }
+    } catch {}
+  }
+
+  return res.status(403).json({ error: 'Request origin is not allowed.' });
 }
 
 module.exports = { requireAuth, requireRole, requireTrustedOrigin };
