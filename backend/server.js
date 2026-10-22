@@ -42,8 +42,10 @@ app.use('/api', portalRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/auth', authRoutes);
 
-mongoose.connect(MONGO_URI, { serverSelectionTimeoutMS: 5000 })
-  .then(() => console.log('Connected to MongoDB'))
+const DB_NAME = process.env.MONGO_DB_NAME || 'StuDS';
+
+mongoose.connect(MONGO_URI, { dbName: DB_NAME, serverSelectionTimeoutMS: 5000 })
+  .then(() => console.log(`Connected to MongoDB (${DB_NAME})`))
   .catch((err) => console.error('MongoDB connection error:', err.message));
 
 app.get('/', (req, res) => {
