@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -25,9 +25,16 @@ import {
   BarChart3,
   Compass,
   ExternalLink,
-  Download
+  Download,
+  User,
+  X,
+  LogOut,
+  Eye,
+  EyeOff,
+  UserPlus,
+  LogIn,
 } from 'lucide-react';
-import { fetchSubjectsBySemester, fetchUnitsBySubject, fetchContentByChapter, fetchQuizAttempt, submitQuizAnswers, normalizePdfUrl } from './services/api';
+import { fetchSubjectsBySemester, fetchUnitsBySubject, fetchContentByChapter, fetchQuizAttempt, submitQuizAnswers, normalizePdfUrl, registerStudent, loginStudent, getCurrentUser, logoutAdmin } from './services/api';
 import AdminDashboard from './components/AdminDashboard';
 import CommandSearch from './components/CommandSearch';
 
@@ -111,10 +118,263 @@ const COURSE_OVERVIEWS = {
   }
 };
 
+// ── Student Auth Modal ─────────────────────────────────────────────────────────
+function StudentAuthModal({ isOpen, onClose, onAuthSuccess, isDarkMode }) {
+  const [mode, setMode] = useState('login'); // 'login' | 'register'
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState('');
+  const modalRef = useRef(null);
+
+  // Reset form when modal opens
+  useEffect(() => {
+    if (isOpen) {
+      setEmail('');
+      setPassword('');
+      setError('');
+      setShowPassword(false);
+      setMode('login');
+    }
+  }, [isOpen]);
+
+  // Close on outside click
+  useEffect(() => {
+    if (!isOpen) return;
+    function handleOutsideClick(e) {
+      if (modalRef.current && !modalRef.current.contains(e.target)) onClose();
+    }
+    document.addEventListener('mousedown', handleOutsideClick);
+    return () => document.removeEventListener('mousedown', handleOutsideClick);
+  }, [isOpen, onClose]);
+
+  // Close on Escape
+  useEffect(() => {
+    if (!isOpen) return;
+    function handleKey(e) { if (e.key === 'Escape') onClose(); }
+    document.addEventListener('keydown', handleKey);
+    return () => document.removeEventListener('keydown', handleKey);
+  }, [isOpen, onClose]);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError('');
+    if (!email.trim() || !password) return;
+    if (mode === 'register' && password.length < 8) {
+      setError('Password must be at least 8 characters.');
+      return;
+    }
+    setIsLoading(true);
+    try {
+      const data = mode === 'register'
+        ? await registerStudent(email.trim(), password)
+        : await loginStudent(email.trim(), password);
+      onAuthSuccess(data.user);
+      onClose();
+    } catch (err) {
+      setError(err.message || (mode === 'register' ? 'Registration failed.' : 'Login failed.'));
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ backgroundColor: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(6px)' }}>
+      <div
+        ref={modalRef}
+        className="relative w-full max-w-md bg-white dark:bg-[#16181d] rounded-2xl shadow-2xl border border-neutral-200 dark:border-[#2a2d36] overflow-hidden"
+        role="dialog"
+        aria-modal="true"
+        aria-label={mode === 'login' ? 'Student Sign In' : 'Create Student Account'}
+      >
+        {/* Decorative gradient top bar */}
+        <div className="h-1 w-full" style={{ background: 'linear-gradient(90deg, #6366f1, #8b5cf6, #a78bfa)' }} />
+
+        <div className="p-8">
+          {/* Header */}
+          <div className="flex items-start justify-between mb-6">
+            <div>
+              <div className="flex items-center gap-2 mb-1">
+                <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)' }}>
+                  {mode === 'login' ? <LogIn className="w-4 h-4 text-white" /> : <UserPlus className="w-4 h-4 text-white" />}
+                </div>
+                <span className="text-xs font-bold uppercase tracking-widest text-indigo-500 dark:text-indigo-400">STUDS Portal</span>
+              </div>
+              <h2 className="text-xl font-bold text-neutral-900 dark:text-white">
+                {mode === 'login' ? 'Welcome back' : 'Create your account'}
+              </h2>
+              <p className="text-sm text-neutral-500 dark:text-neutral-400 mt-0.5">
+                {mode === 'login' ? 'Sign in to track your study progress' : 'Join thousands of students on STUDS'}
+              </p>
+            </div>
+            <button
+              onClick={onClose}
+              className="p-2 rounded-lg text-neutral-400 hover:text-neutral-600 hover:bg-neutral-100 dark:hover:text-neutral-200 dark:hover:bg-[#22252c] transition-colors -mt-1 -mr-2"
+              aria-label="Close"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+
+          {/* Mode toggle tabs */}
+          <div className="flex bg-neutral-100 dark:bg-[#1a1c22] rounded-xl p-1 mb-6">
+            <button
+              id="auth-tab-login"
+              onClick={() => { setMode('login'); setError(''); }}
+              className={`flex-1 py-2 text-sm font-semibold rounded-lg transition-all duration-200 ${
+                mode === 'login'
+                  ? 'bg-white dark:bg-[#22252c] text-neutral-900 dark:text-white shadow-sm'
+                  : 'text-neutral-500 dark:text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-300'
+              }`}
+            >
+              Sign In
+            </button>
+            <button
+              id="auth-tab-register"
+              onClick={() => { setMode('register'); setError(''); }}
+              className={`flex-1 py-2 text-sm font-semibold rounded-lg transition-all duration-200 ${
+                mode === 'register'
+                  ? 'bg-white dark:bg-[#22252c] text-neutral-900 dark:text-white shadow-sm'
+                  : 'text-neutral-500 dark:text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-300'
+              }`}
+            >
+              Sign Up
+            </button>
+          </div>
+
+          {/* Form */}
+          <form onSubmit={handleSubmit} noValidate>
+            <div className="space-y-4">
+              {/* Email */}
+              <div>
+                <label htmlFor="student-email" className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1.5">
+                  Email address
+                </label>
+                <input
+                  id="student-email"
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="you@college.edu"
+                  autoComplete={mode === 'login' ? 'email' : 'email'}
+                  className="w-full px-4 py-2.5 rounded-xl border border-neutral-200 dark:border-[#2a2d36] bg-white dark:bg-[#1a1c22] text-neutral-900 dark:text-white placeholder-neutral-400 dark:placeholder-neutral-600 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
+                  required
+                  disabled={isLoading}
+                />
+              </div>
+
+              {/* Password */}
+              <div>
+                <label htmlFor="student-password" className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1.5">
+                  Password
+                  {mode === 'register' && <span className="text-neutral-400 dark:text-neutral-500 font-normal ml-1">(min. 8 characters)</span>}
+                </label>
+                <div className="relative">
+                  <input
+                    id="student-password"
+                    type={showPassword ? 'text' : 'password'}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder={mode === 'register' ? 'Choose a strong password' : 'Your password'}
+                    autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
+                    className="w-full px-4 py-2.5 pr-11 rounded-xl border border-neutral-200 dark:border-[#2a2d36] bg-white dark:bg-[#1a1c22] text-neutral-900 dark:text-white placeholder-neutral-400 dark:placeholder-neutral-600 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
+                    required
+                    disabled={isLoading}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(v => !v)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200 transition-colors"
+                    tabIndex={-1}
+                    aria-label={showPassword ? 'Hide password' : 'Show password'}
+                  >
+                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
+
+              {/* Error message */}
+              {error && (
+                <div className="flex items-start gap-2.5 p-3 rounded-xl bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/40 text-red-700 dark:text-red-400 text-sm" role="alert">
+                  <span className="mt-px">⚠️</span>
+                  <span>{error}</span>
+                </div>
+              )}
+
+              {/* Submit button */}
+              <button
+                id={mode === 'login' ? 'auth-submit-login' : 'auth-submit-register'}
+                type="submit"
+                disabled={isLoading || !email.trim() || !password}
+                className="w-full py-2.5 rounded-xl text-sm font-semibold text-white transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed"
+                style={{ background: isLoading ? '#6366f1' : 'linear-gradient(135deg, #6366f1, #8b5cf6)' }}
+              >
+                {isLoading
+                  ? (mode === 'login' ? 'Signing in…' : 'Creating account…')
+                  : (mode === 'login' ? 'Sign In' : 'Create Account')
+                }
+              </button>
+            </div>
+          </form>
+
+          {/* Footer note */}
+          <p className="text-center text-xs text-neutral-400 dark:text-neutral-500 mt-5">
+            {mode === 'login'
+              ? <>Don&apos;t have an account?{' '}<button type="button" onClick={() => { setMode('register'); setError(''); }} className="text-indigo-500 hover:underline font-medium">Sign up free</button></>
+              : <>Already have an account?{' '}<button type="button" onClick={() => { setMode('login'); setError(''); }} className="text-indigo-500 hover:underline font-medium">Sign in</button></>
+            }
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Portal ────────────────────────────────────────────────────────────────────
 function Portal() {
   const [isDarkMode, setIsDarkMode] = useState(() => {
     return localStorage.getItem('theme') === 'dark';
   });
+
+  // ── Student auth state ─────────────────────────────────────────────────────
+  const [currentStudent, setCurrentStudent] = useState(null);      // { id, email, role } or null
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [isAuthLoading, setIsAuthLoading] = useState(true);         // true until /auth/me resolves
+  const [showUserMenu, setShowUserMenu] = useState(false);
+  const userMenuRef = useRef(null);
+
+  // Restore session on mount
+  useEffect(() => {
+    getCurrentUser()
+      .then(data => setCurrentStudent(data?.user || null))
+      .catch(() => setCurrentStudent(null))
+      .finally(() => setIsAuthLoading(false));
+  }, []);
+
+  // Close user menu on outside click
+  useEffect(() => {
+    if (!showUserMenu) return;
+    function handleClick(e) {
+      if (userMenuRef.current && !userMenuRef.current.contains(e.target)) {
+        setShowUserMenu(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, [showUserMenu]);
+
+  const handleStudentLogout = useCallback(async () => {
+    setShowUserMenu(false);
+    try { await logoutAdmin(); } catch {}
+    setCurrentStudent(null);
+  }, []);
+
+  const handleAuthSuccess = useCallback((user) => {
+    setCurrentStudent(user);
+  }, []);
 
   useEffect(() => {
     if (isDarkMode) {
@@ -412,8 +672,82 @@ function Portal() {
           >
             {isDarkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
           </button>
+
+          {/* Student Auth Button */}
+          {!isAuthLoading && (
+            !currentStudent ? (
+              <button
+                id="student-signin-btn"
+                onClick={() => setIsAuthModalOpen(true)}
+                className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-sm font-semibold text-white transition-all duration-200 shadow-sm hover:shadow-md hover:opacity-90 active:scale-95"
+                style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)' }}
+              >
+                <User className="w-4 h-4" />
+                <span className="hidden sm:inline">Sign In</span>
+              </button>
+            ) : (
+              <div className="relative" ref={userMenuRef}>
+                <button
+                  id="student-user-menu-btn"
+                  onClick={() => setShowUserMenu(v => !v)}
+                  className="flex items-center gap-2 px-2.5 py-1.5 rounded-xl border border-neutral-200 dark:border-[#2a2d36] bg-white dark:bg-[#1a1c22] hover:bg-neutral-50 dark:hover:bg-[#22252c] transition-colors shadow-sm"
+                  aria-label="Account menu"
+                  aria-haspopup="true"
+                  aria-expanded={showUserMenu}
+                >
+                  <div className="w-6 h-6 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0" style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)' }}>
+                    {currentStudent.email?.[0]?.toUpperCase() || 'S'}
+                  </div>
+                  <span className="text-sm font-medium text-neutral-700 dark:text-neutral-200 hidden sm:block max-w-[120px] truncate">
+                    {currentStudent.email?.split('@')[0]}
+                  </span>
+                  <ChevronDown className="w-3.5 h-3.5 text-neutral-400 shrink-0" />
+                </button>
+
+                {showUserMenu && (
+                  <div className="absolute right-0 mt-2 w-60 rounded-xl shadow-xl border border-neutral-200 dark:border-[#2a2d36] bg-white dark:bg-[#16181d] overflow-hidden z-50" role="menu">
+                    {/* User info */}
+                    <div className="px-4 py-3 border-b border-neutral-100 dark:border-[#22252c]">
+                      <div className="flex items-center gap-3">
+                        <div className="w-9 h-9 rounded-full flex items-center justify-center text-white font-bold shrink-0" style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)' }}>
+                          {currentStudent.email?.[0]?.toUpperCase() || 'S'}
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-sm font-semibold text-neutral-900 dark:text-white truncate">{currentStudent.email?.split('@')[0]}</p>
+                          <p className="text-xs text-neutral-400 dark:text-neutral-500 truncate">{currentStudent.email}</p>
+                        </div>
+                      </div>
+                      <span className="mt-2 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 capitalize">
+                        {currentStudent.role || 'student'}
+                      </span>
+                    </div>
+                    {/* Actions */}
+                    <div className="p-1.5">
+                      <button
+                        id="student-signout-btn"
+                        onClick={handleStudentLogout}
+                        className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-red-600 dark:text-red-400 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors font-medium"
+                        role="menuitem"
+                      >
+                        <LogOut className="w-4 h-4" />
+                        Sign Out
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )
+          )}
         </div>
       </header>
+
+      {/* Student Auth Modal */}
+      <StudentAuthModal
+        isOpen={isAuthModalOpen}
+        onClose={() => setIsAuthModalOpen(false)}
+        onAuthSuccess={handleAuthSuccess}
+        isDarkMode={isDarkMode}
+      />
 
       <main className="flex flex-1 min-h-0">
         {/* SIDEBAR NAVIGATION */}

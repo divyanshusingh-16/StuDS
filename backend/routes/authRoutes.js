@@ -16,6 +16,7 @@ const {
 const router = express.Router();
 const DUMMY_PASSWORD_HASH = '$2b$12$OOGwOxQFWKUUFUOnPviRGu4FSIZh0i94vwNsfi06CGL28xkgMT0ta';
 
+// ── Rate limiters ──────────────────────────────────────────────────────────────
 const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   limit: 15,
@@ -24,17 +25,98 @@ const loginLimiter = rateLimit({
   message: { error: 'Too many login attempts. Please try again later.' },
 });
 
+// Slightly stricter for registration to prevent bulk account creation
+const registerLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour window
+  limit: 10,                  // 10 registrations per IP per hour
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many accounts created. Please try again later.' },
+});
+
+// ── Helpers ────────────────────────────────────────────────────────────────────
 function normalizeEmail(email) {
   return typeof email === 'string' ? email.trim().toLowerCase() : '';
 }
 
+function isValidEmail(email) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) && email.length <= 254;
+}
+
+function isValidPassword(password) {
+  return (
+    typeof password === 'string' &&
+    password.length >= 8 &&
+    password.length <= 1024
+  );
+}
+
 function isValidLoginInput(email, password) {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
+  return isValidEmail(email)
     && typeof password === 'string'
     && password.length > 0
     && password.length <= 1024;
 }
 
+// ── POST /api/auth/register ─────────────────────────────────────────────────
+// Public student self-registration.
+// SECURITY: The `student` role is ALWAYS assigned server-side regardless of any
+// role value the client may send. Privileged roles (content_admin, super_admin)
+// can only be assigned by an existing super_admin through the admin dashboard.
+router.post('/register', registerLimiter, async (req, res, next) => {
+  try {
+    const email = normalizeEmail(req.body?.email);
+    const { password } = req.body || {};
+
+    if (!isValidEmail(email)) {
+      return res.status(400).json({ error: 'A valid email address is required.' });
+    }
+    if (!isValidPassword(password)) {
+      return res.status(400).json({
+        error: 'Password must be at least 8 characters long.',
+      });
+    }
+
+    // Check for duplicate email (informative but timing-safe enough here)
+    const existing = await User.findOne({ email });
+    if (existing) {
+      return res.status(409).json({ error: 'An account with this email already exists.' });
+    }
+
+    const passwordHash = await bcrypt.hash(password, 12);
+
+    // SECURITY CRITICAL: role is hardcoded to 'student'.
+    // Any role value from req.body is intentionally ignored.
+    const user = await User.create({
+      email,
+      passwordHash,
+      role: 'student',
+      isActive: true,
+    });
+
+    // Issue a session immediately so the user is logged in after registration
+    const sessionToken = createSessionToken();
+    const now = new Date();
+    await Session.create({
+      tokenHash: hashSessionToken(sessionToken),
+      userId: user._id,
+      expiresAt: new Date(now.getTime() + getSessionTtlMs()),
+      lastUsedAt: now,
+      userAgent: req.get('user-agent')?.slice(0, 512) || null,
+      ipAddress: req.ip?.slice(0, 128) || null,
+    });
+
+    user.lastLoginAt = now;
+    await user.save();
+
+    res.cookie(SESSION_COOKIE_NAME, sessionToken, getCookieOptions());
+    return res.status(201).json({ user: user.toSafeJSON() });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+// ── POST /api/auth/login ───────────────────────────────────────────────────
 router.post('/login', loginLimiter, async (req, res, next) => {
   try {
     const email = normalizeEmail(req.body?.email);
@@ -70,6 +152,7 @@ router.post('/login', loginLimiter, async (req, res, next) => {
   }
 });
 
+// ── POST /api/auth/logout ─────────────────────────────────────────────────
 router.post('/logout', async (req, res, next) => {
   try {
     const sessionToken = req.cookies?.[SESSION_COOKIE_NAME];
@@ -83,6 +166,7 @@ router.post('/logout', async (req, res, next) => {
   }
 });
 
+// ── GET /api/auth/me ──────────────────────────────────────────────────────
 router.get('/me', requireAuth, (req, res) => res.json({ user: req.auth.user.toSafeJSON() }));
 
 module.exports = router;

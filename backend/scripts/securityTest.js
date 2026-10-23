@@ -92,8 +92,62 @@ async function run() {
     assert(`Login rejects ${label} → 400`, r.status === 400, `got ${r.status}`);
   }
 
-  // ── 3. Wrong credentials ──────────────────────────────────────────────────
-  console.log('\n── 3. Wrong credentials ─────────────────────────────────────');
+  // ── 3. Student self-registration security ─────────────────────────────────
+  console.log('\n── 3. Student registration security ────────────────────────');
+
+  const TEST_STUDENT_EMAIL = `security-test-student-${Date.now()}@studs-test.app`;
+  const TEST_STUDENT_PASSWORD = 'TestStudent@8chars!';
+
+  // 3a. Reject short passwords
+  const shortPassReg = await httpRequest('/auth/register', 'POST', { email: TEST_STUDENT_EMAIL, password: 'short' });
+  assert('Register: short password (<8 chars) → 400', shortPassReg.status === 400, `got ${shortPassReg.status}`);
+
+  // 3b. Reject bad email
+  const badEmailReg = await httpRequest('/auth/register', 'POST', { email: 'notanemail', password: TEST_STUDENT_PASSWORD });
+  assert('Register: invalid email → 400', badEmailReg.status === 400, `got ${badEmailReg.status}`);
+
+  // 3c. Successful registration returns 201
+  const regRes = await httpRequest('/auth/register', 'POST', { email: TEST_STUDENT_EMAIL, password: TEST_STUDENT_PASSWORD });
+  assert('Register: valid input → 201', regRes.status === 201, `got ${regRes.status}`);
+  assert('Register: response has user object', !!regRes.body?.user);
+  assert('Register: role is always "student" regardless of client', regRes.body?.user?.role === 'student', `got role: ${regRes.body?.user?.role}`);
+  assert('Register: response does NOT leak passwordHash', !JSON.stringify(regRes.body).includes('passwordHash'));
+
+  const regSetCookie = Array.isArray(regRes.headers['set-cookie']) ? regRes.headers['set-cookie'].join('; ') : (regRes.headers['set-cookie'] || '');
+  const regSessionMatch = regSetCookie.match(/studs_session=[^;]+/);
+  const regSessionCookie = regSessionMatch?.[0] || '';
+  assert('Register: session cookie issued immediately', !!regSessionCookie, 'no studs_session cookie found');
+
+  // 3d. Role injection: client tries to register as admin — must be overridden to student
+  const roleInjectionAttempt = await httpRequest('/auth/register', 'POST', {
+    email: `role-inject-${Date.now()}@studs-test.app`,
+    password: TEST_STUDENT_PASSWORD,
+    role: 'super_admin',      // client-supplied privileged role — must be ignored
+  });
+  assert('Register: client-supplied "super_admin" role is silently overridden to "student"',
+    roleInjectionAttempt.body?.user?.role === 'student',
+    `got role: ${roleInjectionAttempt.body?.user?.role}`);
+
+  const adminRoleInjection = await httpRequest('/auth/register', 'POST', {
+    email: `role-inject2-${Date.now()}@studs-test.app`,
+    password: TEST_STUDENT_PASSWORD,
+    role: 'content_admin',
+  });
+  assert('Register: client-supplied "content_admin" role is silently overridden to "student"',
+    adminRoleInjection.body?.user?.role === 'student',
+    `got role: ${adminRoleInjection.body?.user?.role}`);
+
+  // 3e. Duplicate email detection
+  const dupReg = await httpRequest('/auth/register', 'POST', { email: TEST_STUDENT_EMAIL, password: TEST_STUDENT_PASSWORD });
+  assert('Register: duplicate email → 409', dupReg.status === 409, `got ${dupReg.status}`);
+
+  // Clean up test student session (logout)
+  if (regSessionCookie) {
+    await httpRequest('/auth/logout', 'POST', null, regSessionCookie);
+  }
+
+  // ── 4. Wrong credentials ──────────────────────────────────────────────────
+  console.log('\n── 4. Wrong credentials ─────────────────────────────────────');
 
   const wrongPass = await httpRequest('/auth/login', 'POST', { email: ADMIN_EMAIL, password: 'WrongPassword999!' });
   assert('Wrong password → 401', wrongPass.status === 401, `got ${wrongPass.status}`);
@@ -102,8 +156,8 @@ async function run() {
   const wrongEmail = await httpRequest('/auth/login', 'POST', { email: 'nonexistent@studs.app', password: 'Whatever123!' });
   assert('Non-existent email → same 401 (no email enumeration)', wrongEmail.status === 401 && wrongEmail.body?.error === 'Invalid email or password.');
 
-  // ── 4. Successful login ───────────────────────────────────────────────────
-  console.log('\n── 4. Successful login ──────────────────────────────────────');
+  // ── 5. Successful login ───────────────────────────────────────────────────
+  console.log('\n── 5. Successful login ──────────────────────────────────────');
 
   const loginRes = await httpRequest('/auth/login', 'POST', { email: ADMIN_EMAIL, password: ADMIN_PASSWORD });
   assert('Correct credentials → 200', loginRes.status === 200, `got ${loginRes.status}`);
@@ -125,8 +179,8 @@ async function run() {
   sessionCookie = cookieMatch?.[0] || '';
   assert('Session cookie extracted for subsequent tests', !!sessionCookie);
 
-  // ── 5. /auth/me ───────────────────────────────────────────────────────────
-  console.log('\n── 5. /auth/me endpoint ─────────────────────────────────────');
+  // ── 6. /auth/me ───────────────────────────────────────────────────────────
+  console.log('\n── 6. /auth/me endpoint ─────────────────────────────────────');
 
   const meRes = await httpRequest('/auth/me', 'GET', null, sessionCookie);
   assert('/auth/me → 200 with valid session', meRes.status === 200, `got ${meRes.status}`);
@@ -136,14 +190,14 @@ async function run() {
   const meNoAuth = await httpRequest('/auth/me', 'GET', null, '');
   assert('/auth/me → 401 without session', meNoAuth.status === 401, `got ${meNoAuth.status}`);
 
-  // ── 6. Authenticated admin access ─────────────────────────────────────────
-  console.log('\n── 6. Authenticated super_admin access ──────────────────────');
+  // ── 7. Authenticated admin access ─────────────────────────────────────────
+  console.log('\n── 7. Authenticated super_admin access ──────────────────────');
 
   const upsertRes = await httpRequest('/admin/content/upsert', 'POST', { chapterId: 'security-test-ch', fullNotesMarkdown: '# Test' }, sessionCookie);
   assert('Authenticated content upsert → not 401/403', upsertRes.status !== 401 && upsertRes.status !== 403, `got ${upsertRes.status}`);
 
-  // ── 7. Logout and session revocation ──────────────────────────────────────
-  console.log('\n── 7. Logout and session revocation ─────────────────────────');
+  // ── 8. Logout and session revocation ──────────────────────────────────────
+  console.log('\n── 8. Logout and session revocation ─────────────────────────');
 
   const logoutRes = await httpRequest('/auth/logout', 'POST', null, sessionCookie);
   assert('Logout → 204', logoutRes.status === 204, `got ${logoutRes.status}`);
@@ -154,14 +208,14 @@ async function run() {
   const afterLogoutAdmin = await httpRequest('/admin/generate-summary', 'POST', { chapterContentMarkdown: 'test' }, sessionCookie);
   assert('After logout, admin endpoint → 401', afterLogoutAdmin.status === 401, `got ${afterLogoutAdmin.status}`);
 
-  // ── 8. Double logout (idempotent) ─────────────────────────────────────────
-  console.log('\n── 8. Double logout (idempotent) ────────────────────────────');
+  // ── 9. Double logout (idempotent) ─────────────────────────────────────────
+  console.log('\n── 9. Double logout (idempotent) ────────────────────────────');
 
   const doubleLogout = await httpRequest('/auth/logout', 'POST', null, sessionCookie);
   assert('Second logout → 204 (safe)', doubleLogout.status === 204, `got ${doubleLogout.status}`);
 
-  // ── 9. Public routes regression ───────────────────────────────────────────
-  console.log('\n── 9. Public routes (no auth required) ──────────────────────');
+  // ── 10. Public routes regression ───────────────────────────────────────────
+  console.log('\n── 10. Public routes (no auth required) ─────────────────────');
 
   const subjectsRes = await httpRequest('/subjects/4?course=Engineering%20(B.E.%2FM.E.)%3A%20Computer%20Science%20(CSE)', 'GET');
   assert('GET /subjects/:semester → 200 publicly', subjectsRes.status === 200, `got ${subjectsRes.status}`);
@@ -170,8 +224,8 @@ async function run() {
   const searchRes = await httpRequest('/search?q=algorithms', 'GET');
   assert('GET /search → 200 publicly', searchRes.status === 200, `got ${searchRes.status}`);
 
-  // ── 10. Rate limiting ─────────────────────────────────────────────────────
-  console.log('\n── 10. Login rate limiting ──────────────────────────────────');
+  // ── 11. Rate limiting ─────────────────────────────────────────────────────
+  console.log('\n── 11. Login rate limiting ──────────────────────────────────');
 
   // Re-login to reset rate limit context (different IP path), use a fresh email pattern
   let hitRateLimit = false;

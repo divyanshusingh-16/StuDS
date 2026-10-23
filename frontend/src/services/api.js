@@ -186,6 +186,30 @@ export const loginAdmin = async (email, password) => {
   return res.json();
 };
 
+// Student self-registration — backend enforces 'student' role server-side
+export const registerStudent = async (email, password) => {
+  const res = await apiFetch('/auth/register', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, password }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || 'Registration failed');
+  return data;
+};
+
+// Student login (same endpoint as admin — unified login, role comes from server)
+export const loginStudent = async (email, password) => {
+  const res = await apiFetch('/auth/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, password }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || 'Login failed');
+  return data;
+};
+
 export const getCurrentUser = async () => {
   const res = await apiFetch('/auth/me');
   if (res.status === 401) return null;
