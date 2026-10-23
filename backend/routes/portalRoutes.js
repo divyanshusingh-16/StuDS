@@ -150,9 +150,35 @@ router.get('/content/:chapterId', async (req, res) => {
       return res.status(404).json({ error: 'No study materials uploaded for this chapter yet.' });
     }
     
-    // Only return published notes to students
+    const normalizeMediaUrl = (url) => {
+      if (!url || typeof url !== 'string') return url;
+      if (/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?/i.test(url)) {
+        const host = req.get('host');
+        if (host && !host.includes('localhost') && !host.includes('127.0.0.1')) {
+          const proto = req.get('x-forwarded-proto') || req.protocol || 'https';
+          const path = url.replace(/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?/, '');
+          return `${proto}://${host}${path}`;
+        }
+      }
+      return url;
+    };
+
+    // Only return published notes to students & dynamically normalize media URLs
     if (content.notes && Array.isArray(content.notes)) {
-      content.notes = content.notes.filter(note => note.status === 'published');
+      content.notes = content.notes
+        .filter(note => note.status === 'published')
+        .map(note => ({
+          ...note,
+          fileUrl: normalizeMediaUrl(note.fileUrl),
+          originalDocumentUrl: normalizeMediaUrl(note.originalDocumentUrl)
+        }));
+    }
+
+    if (content.pastPapers && Array.isArray(content.pastPapers)) {
+      content.pastPapers = content.pastPapers.map(pyq => ({
+        ...pyq,
+        fileUrl: normalizeMediaUrl(pyq.fileUrl)
+      }));
     }
 
     // Only return published study resources to students

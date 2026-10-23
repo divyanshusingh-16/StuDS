@@ -23,7 +23,8 @@ import {
   runPipelineGenerate,
   runPipelineRetry,
   updateDraftResources,
-  publishPipelineResources
+  publishPipelineResources,
+  normalizePdfUrl
 } from '../services/api';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -1117,7 +1118,7 @@ export default function AdminDashboard() {
                                     {hasPdf && (
                                       <button 
                                         type="button"
-                                        onClick={() => setPreviewModalPdfUrl(fileUrl)} 
+                                        onClick={() => setPreviewModalPdfUrl(normalizePdfUrl(fileUrl))} 
                                         className="text-xs font-semibold text-slate-700 hover:text-slate-900 underline"
                                       >
                                         Preview

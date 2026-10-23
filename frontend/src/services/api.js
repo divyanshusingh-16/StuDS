@@ -1,5 +1,35 @@
 const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001/api';
 
+export const normalizePdfUrl = (url) => {
+  if (!url || typeof url !== 'string') return '';
+  const trimmed = url.trim();
+  if (!trimmed) return '';
+
+  // If already an external cloud URL (e.g. Cloudinary, S3), keep as-is
+  if (/^https?:\/\/(?!localhost|127\.0\.0\.1)/i.test(trimmed)) {
+    return trimmed;
+  }
+
+  // If pointing to localhost / 127.0.0.1
+  if (/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?/i.test(trimmed)) {
+    const path = trimmed.replace(/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?/, '');
+    const cleanPath = path.startsWith('/') ? path : `/${path}`;
+
+    // When deployed in production (e.g. https://stu-ds.vercel.app or any non-localhost host)
+    if (typeof window !== 'undefined' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+      return cleanPath;
+    }
+    return trimmed;
+  }
+
+  // If relative path like /uploads/...
+  if (trimmed.startsWith('/')) {
+    return trimmed;
+  }
+
+  return trimmed;
+};
+
 const apiFetch = (path, options = {}) => fetch(`${BASE_URL}${path}`, {
   credentials: 'include',
   ...options,

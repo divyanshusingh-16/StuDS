@@ -27,7 +27,7 @@ import {
   ExternalLink,
   Download
 } from 'lucide-react';
-import { fetchSubjectsBySemester, fetchUnitsBySubject, fetchContentByChapter, fetchQuizAttempt, submitQuizAnswers } from './services/api';
+import { fetchSubjectsBySemester, fetchUnitsBySubject, fetchContentByChapter, fetchQuizAttempt, submitQuizAnswers, normalizePdfUrl } from './services/api';
 import AdminDashboard from './components/AdminDashboard';
 import CommandSearch from './components/CommandSearch';
 
@@ -614,7 +614,8 @@ function Portal() {
                         return renderableNotes.length > 0 ? (
                           <div className="flex flex-col gap-10">
                             {renderableNotes.map(note => {
-                              const pdfUrl = note.fileUrl || note.originalDocumentUrl;
+                              const rawPdfUrl = note.fileUrl || note.originalDocumentUrl;
+                              const pdfUrl = normalizePdfUrl(rawPdfUrl);
                               // isPdf is true ONLY when there's an actual PDF URL attached
                               const isPdf = Boolean(
                                 pdfUrl && (
@@ -917,7 +918,7 @@ function Portal() {
                             {sortedPyqs.map((pyq, idx) => (
                               <button 
                                 key={idx} 
-                                onClick={() => setSelectedPyq(pyq.fileUrl)}
+                                onClick={() => setSelectedPyq(normalizePdfUrl(pyq.fileUrl))}
                                 className="pyq-card flex items-center justify-between p-5 border border-neutral-200 dark:border-[#26282e] rounded-xl hover:border-neutral-400 dark:hover:border-neutral-500 hover:bg-neutral-50 dark:hover:bg-[#181a20] bg-white dark:bg-[#16181d] text-left shadow-2xs group"
                               >
                                 <div>
