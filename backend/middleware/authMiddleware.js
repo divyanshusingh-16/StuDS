@@ -1,7 +1,8 @@
 const Session = require('../models/Session');
 const { User } = require('../models/User');
-const { SESSION_COOKIE_NAME, hashSessionToken } = require('../config/auth');
+const { SESSION_COOKIE_NAME, hashSessionToken, getClearCookieOptions } = require('../config/auth');
 
+const INACTIVITY_TIMEOUT_MS = 3 * 24 * 60 * 60 * 1000; // 3 days
 
 async function requireAuth(req, res, next) {
   try {
@@ -19,13 +20,22 @@ async function requireAuth(req, res, next) {
       return res.status(401).json({ error: 'Authentication required.' });
     }
 
+    // Enforce 3-day inactivity timeout
+    const now = Date.now();
+    if (now - session.lastUsedAt.getTime() > INACTIVITY_TIMEOUT_MS) {
+      await Session.deleteOne({ _id: session._id });
+      res.clearCookie(SESSION_COOKIE_NAME, getClearCookieOptions());
+      return res.status(401).json({ error: 'Session expired due to inactivity. Please log in again.' });
+    }
+
     const user = await User.findById(session.userId);
     if (!user || !user.isActive) {
       await Session.deleteOne({ _id: session._id });
+      res.clearCookie(SESSION_COOKIE_NAME, getClearCookieOptions());
       return res.status(401).json({ error: 'Authentication required.' });
     }
 
-    if (Date.now() - session.lastUsedAt.getTime() > 5 * 60 * 1000) {
+    if (now - session.lastUsedAt.getTime() > 5 * 60 * 1000) {
       session.lastUsedAt = new Date();
       await session.save();
     }

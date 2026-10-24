@@ -2,8 +2,12 @@ const express = require('express');
 const Subject = require('../models/Subject');
 const Unit = require('../models/Unit');
 const Content = require('../models/Content');
+const { requireAuth } = require('../middleware/authMiddleware');
 
 const router = express.Router();
+
+// Enforce authentication on all student portal data routes
+router.use(requireAuth);
 
 router.get('/subjects/:semester', async (req, res) => {
   try {
@@ -88,54 +92,224 @@ router.get('/units/:subjectId', async (req, res) => {
   }
 });
 
+function normalizeSearchText(str) {
+  if (!str) return '';
+  return str
+    .replace(/[\u2010\u2011\u2012\u2013\u2014\u2015\u2212]/g, '-')
+    .replace(/[^a-zA-Z0-9\s-]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase();
+}
+
+function scoreSearchMatch(targetStr, query, tokens) {
+  if (!targetStr) return 0;
+  const targetNorm = normalizeSearchText(targetStr);
+  if (!targetNorm) return 0;
+  let score = 0;
+
+  if (targetNorm === query) score += 1000;
+  else if (targetNorm.startsWith(query)) score += 600;
+  else if (targetNorm.includes(query)) score += 400;
+
+  const targetWords = targetNorm.split(' ');
+  let allTokensMatched = true;
+
+  for (const token of tokens) {
+    const tokenStem = token.replace(/s$/, '');
+    let tokenMatched = false;
+    for (const tw of targetWords) {
+      const twStem = tw.replace(/s$/, '');
+      if (tw === token) {
+        score += 300;
+        tokenMatched = true;
+        break;
+      } else if (twStem.length > 2 && twStem === tokenStem) {
+        score += 280;
+        tokenMatched = true;
+        break;
+      } else if (tw.startsWith(token)) {
+        score += 200;
+        tokenMatched = true;
+        break;
+      } else if (tw.includes(token)) {
+        score += 80;
+        tokenMatched = true;
+        break;
+      }
+    }
+    if (!tokenMatched) allTokensMatched = false;
+  }
+
+  if (tokens.length > 1 && allTokensMatched) {
+    score += 400;
+  }
+
+  return score;
+}
+
 router.get('/search', async (req, res) => {
   try {
-    const query = req.query.q;
-    if (!query) return res.json([]);
+    const rawQuery = req.query.q;
+    const currentSem = parseInt(req.query.semester, 10);
+    if (!rawQuery || typeof rawQuery !== 'string' || rawQuery.trim().length < 2) {
+      return res.json([]);
+    }
 
-    const contents = await Content.find(
-      { $text: { $search: query } },
-      { score: { $meta: "textScore" } }
-    )
-    .sort({ score: { $meta: "textScore" } })
-    .limit(5)
-    .lean();
+    const normQ = normalizeSearchText(rawQuery);
+    const tokens = normQ.split(' ').filter(Boolean);
+    if (tokens.length === 0) return res.json([]);
 
-    if (contents.length === 0) return res.json([]);
+    const subjects = await Subject.find({
+      subjectCode: { $not: /^CONT_/i },
+      subjectName: { $not: /^CONT_/i }
+    }).lean();
+    const units = await Unit.find({}).lean();
+    const contents = await Content.find({}).lean();
 
-    const chapterIds = contents.map(c => c.chapterId);
-    const units = await Unit.find({ 'chapters.chapterId': { $in: chapterIds } }).lean();
+    const results = [];
+    const seen = new Set();
 
-    const results = contents.map(content => {
-      let chapterName = content.chapterId;
-      let unitName = 'Unknown Unit';
-      let subjectId = null;
+    // 1. Search Subjects
+    for (const sub of subjects) {
+      if (sub.semester === 5 && /^Soft Skills/i.test(sub.subjectName)) continue;
+      const codeScore = scoreSearchMatch(sub.subjectCode, normQ, tokens) * 1.6;
+      const nameScore = scoreSearchMatch(sub.subjectName, normQ, tokens) > 0
+        ? scoreSearchMatch(sub.subjectName, normQ, tokens) + 60
+        : 0;
+      let score = Math.max(codeScore, nameScore);
 
-      for (const unit of units) {
-        const chapter = unit.chapters.find(c => c.chapterId === content.chapterId);
-        if (chapter) {
-          chapterName = chapter.chapterName;
-          unitName = unit.unitName;
-          subjectId = unit.subjectId;
-          break;
+      // Boost if in current semester
+      if (currentSem && sub.semester === currentSem && score > 0) {
+        score += 80;
+      }
+
+      if (score >= 80) {
+        const key = `sub_${sub._id}`;
+        if (!seen.has(key)) {
+          seen.add(key);
+          results.push({
+            id: String(sub._id),
+            type: 'subject',
+            title: sub.subjectName,
+            code: sub.subjectCode,
+            parentContext: `Semester ${sub.semester} • ${sub.department || 'Course'}`,
+            snippet: `${sub.course || ''} ${sub.specialization ? '• ' + sub.specialization : ''}`.trim(),
+            score: Math.round(score),
+            semester: sub.semester,
+            subjectId: sub._id,
+            unitId: null,
+            chapterId: null
+          });
+        }
+      }
+    }
+
+    const subMap = new Map();
+    subjects.forEach(s => subMap.set(String(s._id), s));
+
+    // 2. Search Units & Chapters
+    for (const u of units) {
+      const parentSub = subMap.get(String(u.subjectId));
+      if (!parentSub) continue;
+
+      let unitScore = scoreSearchMatch(u.unitName, normQ, tokens);
+      if (currentSem && parentSub.semester === currentSem && unitScore > 0) {
+        unitScore += 80;
+      }
+      if (unitScore >= 80) {
+        const key = `unit_${u._id}`;
+        if (!seen.has(key)) {
+          seen.add(key);
+          results.push({
+            id: String(u._id),
+            type: 'unit',
+            title: `Unit ${u.unitNumber}: ${u.unitName}`,
+            code: parentSub.subjectCode,
+            parentContext: `${parentSub.subjectName} • Unit ${u.unitNumber}`,
+            snippet: `${parentSub.subjectCode} • Semester ${parentSub.semester}`,
+            score: Math.round(unitScore * 0.95),
+            semester: parentSub.semester,
+            subjectId: parentSub._id,
+            unitId: u._id,
+            chapterId: null
+          });
         }
       }
 
-      const rawText = (content.fullNotesMarkdown || '').replace(/[#*`_\[\]()]/g, ' ').replace(/\s+/g, ' ').trim();
-      const snippet = rawText.substring(0, 120) + (rawText.length > 120 ? '...' : '');
+      for (const ch of (u.chapters || [])) {
+        const cleanChTitle = (ch.chapterName || '').replace(/^(\d+(\.\d+)*\s*[-–—:]*\s*)/, '');
+        const chScore = Math.max(
+          scoreSearchMatch(ch.chapterName, normQ, tokens),
+          scoreSearchMatch(cleanChTitle, normQ, tokens)
+        );
+        const contextNorm = normalizeSearchText(`${parentSub.subjectName} ${u.unitName} ${ch.chapterName}`);
+        let contextBonus = 0;
+        if (tokens.length > 1 && tokens.every(t => contextNorm.includes(t))) {
+          contextBonus = 200;
+        }
+        let totalScore = Math.max(chScore, (chScore > 0 ? chScore + contextBonus : 0));
+        if (currentSem && parentSub.semester === currentSem && totalScore > 0) {
+          totalScore += 80;
+        }
 
-      return {
-        type: 'chapter',
-        title: chapterName,
-        parentContext: unitName,
-        snippet,
-        subjectId,
-        chapterId: content.chapterId,
-        score: content.score
-      };
-    });
+        if (totalScore >= 80) {
+          const key = `ch_${ch.chapterId}`;
+          if (!seen.has(key)) {
+            seen.add(key);
+            results.push({
+              id: ch.chapterId,
+              type: 'chapter',
+              title: ch.chapterName,
+              code: parentSub.subjectCode,
+              parentContext: `${parentSub.subjectName} • Unit ${u.unitNumber} ${u.unitName}`,
+              snippet: `${parentSub.subjectName} (${parentSub.subjectCode}) • Unit ${u.unitNumber}`,
+              score: Math.round(totalScore),
+              semester: parentSub.semester,
+              subjectId: parentSub._id,
+              unitId: u._id,
+              chapterId: ch.chapterId
+            });
+          }
+        }
+      }
+    }
 
-    res.json(results);
+    // 3. Search Published Content & Notes
+    for (const content of contents) {
+      const publishedNotes = (content.notes || []).filter(n => n.status === 'published');
+      for (const note of publishedNotes) {
+        const noteScore = scoreSearchMatch(note.title, normQ, tokens);
+        if (noteScore >= 80) {
+          for (const u of units) {
+            const ch = (u.chapters || []).find(c => c.chapterId === content.chapterId);
+            if (ch) {
+              const parentSub = subMap.get(String(u.subjectId));
+              const key = `note_${note._id || note.title}`;
+              if (!seen.has(key)) {
+                seen.add(key);
+                results.push({
+                  id: String(note._id || content.chapterId),
+                  type: 'resource',
+                  title: note.title,
+                  code: parentSub?.subjectCode || null,
+                  parentContext: `${ch.chapterName} • Notes`,
+                  snippet: `${parentSub?.subjectName || ''} • Academic Reference Notes`,
+                  score: Math.round(noteScore * 0.85),
+                  semester: parentSub?.semester || 5,
+                  subjectId: parentSub?._id,
+                  unitId: u._id,
+                  chapterId: ch.chapterId
+                });
+              }
+            }
+          }
+        }
+      }
+    }
+
+    results.sort((a, b) => b.score - a.score);
+    res.json(results.slice(0, 15));
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

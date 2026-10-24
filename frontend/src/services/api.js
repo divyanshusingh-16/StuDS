@@ -222,8 +222,11 @@ export const logoutAdmin = async () => {
   if (!res.ok && res.status !== 401) throw new Error('Logout failed');
 };
 
-export const globalSearch = async (query) => {
-  const res = await apiFetch(`/search?q=${encodeURIComponent(query)}`);
+export const logoutStudent = logoutAdmin;
+
+export const globalSearch = async (query, semester = null) => {
+  const semParam = semester ? `&semester=${encodeURIComponent(semester)}` : '';
+  const res = await apiFetch(`/search?q=${encodeURIComponent(query)}${semParam}`);
   if (!res.ok) throw new Error('Search failed');
   return res.json();
 };

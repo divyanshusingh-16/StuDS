@@ -12,6 +12,11 @@ const userSchema = new mongoose.Schema(
       maxlength: 254,
       match: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
     },
+    uid: {
+      type: String,
+      trim: true,
+      maxlength: 50,
+    },
     passwordHash: {
       type: String,
       required: true,
@@ -39,11 +44,13 @@ const userSchema = new mongoose.Schema(
 );
 
 userSchema.index({ email: 1 }, { unique: true });
+userSchema.index({ uid: 1 }, { unique: true, sparse: true });
 
 userSchema.methods.toSafeJSON = function toSafeJSON() {
   return {
     id: this._id.toString(),
     email: this.email,
+    uid: this.uid || null,
     role: this.role,
   };
 };

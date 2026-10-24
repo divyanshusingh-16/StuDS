@@ -234,10 +234,11 @@ async function runTests() {
     assert('Note status is published', publishRes.body?.status === 'published');
     assert('Note content field populated with cleaned markdown', publishRes.body?.content?.length > 70000);
 
-    // Verify Student Portal view
+    // Verify Student Portal view (authenticated)
     const studentRes = await makeRequest({
       path: `/content/${CHAPTER_ID}`,
-      method: 'GET'
+      method: 'GET',
+      cookie: sessionCookie
     });
 
     assert('Student portal responds with 200', studentRes.status === 200);

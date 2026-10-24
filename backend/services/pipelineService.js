@@ -199,7 +199,9 @@ async function generateStagingResources(chapterId, options = {}) {
       requiresConfirmation: true,
       message: 'A staging draft already exists for this chapter. Confirm to regenerate and overwrite this draft.',
       hasDraft: true,
-      hasPublished: content.studyResources?.status === 'published'
+      hasPublished: content.studyResources?.status === 'published',
+      questionCount: content.draftQuizQuestions?.length || content.quizQuestions?.length || 0,
+      existingQuestionCount: content.draftQuizQuestions?.length || content.quizQuestions?.length || 0
     };
   }
 

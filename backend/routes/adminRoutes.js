@@ -459,7 +459,11 @@ router.post('/content/:chapterId/study-resources/generate', requireRole('content
       forceRegenerate: Boolean(forceRegenerate),
       noteId
     });
-    return res.json(result);
+    return res.json({
+      ...result,
+      studyResources: result.draftStudyResources || result.studyResources,
+      quizQuestions: result.draftQuizQuestions || result.quizQuestions
+    });
   } catch (error) {
     console.error('[Study Resources Generate]', error.message);
     return res.status(500).json({ error: error.message });

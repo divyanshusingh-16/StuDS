@@ -35,12 +35,25 @@ const registerLimiter = rateLimit({
 });
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
-function normalizeEmail(email) {
-  return typeof email === 'string' ? email.trim().toLowerCase() : '';
-}
+function normalizeIdentifier(raw) {
+  if (typeof raw !== 'string') return { valid: false };
+  const trimmed = raw.trim();
+  if (!trimmed || trimmed.length > 254) return { valid: false };
 
-function isValidEmail(email) {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) && email.length <= 254;
+  if (trimmed.includes('@')) {
+    const isEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed);
+    if (!isEmail) return { valid: false };
+    return { valid: true, email: trimmed.toLowerCase(), rawUid: null };
+  }
+
+  // College UID or student username: alphanumeric, hyphen, underscore, 3-30 chars (e.g. 22BCS10142)
+  const isUid = /^[a-zA-Z0-9_-]{3,30}$/.test(trimmed);
+  if (!isUid) return { valid: false };
+  return {
+    valid: true,
+    email: `${trimmed.toLowerCase()}@student.studs.app`,
+    rawUid: trimmed,
+  };
 }
 
 function isValidPassword(password) {
@@ -51,25 +64,20 @@ function isValidPassword(password) {
   );
 }
 
-function isValidLoginInput(email, password) {
-  return isValidEmail(email)
-    && typeof password === 'string'
-    && password.length > 0
-    && password.length <= 1024;
-}
-
 // ── POST /api/auth/register ─────────────────────────────────────────────────
 // Public student self-registration.
 // SECURITY: The `student` role is ALWAYS assigned server-side regardless of any
-// role value the client may send. Privileged roles (content_admin, super_admin)
-// can only be assigned by an existing super_admin through the admin dashboard.
+// role value the client may send.
+// UX JOURNEY: After registration, the student must sign in with their credentials;
+// an authenticated session is NOT silently created upon registration.
 router.post('/register', registerLimiter, async (req, res, next) => {
   try {
-    const email = normalizeEmail(req.body?.email);
+    const rawIdentifier = req.body?.email || req.body?.username || req.body?.identifier;
     const { password } = req.body || {};
 
-    if (!isValidEmail(email)) {
-      return res.status(400).json({ error: 'A valid email address is required.' });
+    const ident = normalizeIdentifier(rawIdentifier);
+    if (!ident.valid) {
+      return res.status(400).json({ error: 'A valid college UID or email address is required.' });
     }
     if (!isValidPassword(password)) {
       return res.status(400).json({
@@ -77,40 +85,36 @@ router.post('/register', registerLimiter, async (req, res, next) => {
       });
     }
 
-    // Check for duplicate email (informative but timing-safe enough here)
-    const existing = await User.findOne({ email });
+    // Check for duplicate account by email or uid
+    const queryConditions = [{ email: ident.email }];
+    if (ident.rawUid) {
+      queryConditions.push({ uid: ident.rawUid });
+    }
+    const existing = await User.findOne({ $or: queryConditions });
     if (existing) {
-      return res.status(409).json({ error: 'An account with this email already exists.' });
+      return res.status(409).json({ error: 'An account with this college UID or email already exists.' });
     }
 
     const passwordHash = await bcrypt.hash(password, 12);
 
-    // SECURITY CRITICAL: role is hardcoded to 'student'.
-    // Any role value from req.body is intentionally ignored.
-    const user = await User.create({
-      email,
+    const userPayload = {
+      email: ident.email,
       passwordHash,
       role: 'student',
       isActive: true,
+    };
+    if (ident.rawUid) {
+      userPayload.uid = ident.rawUid;
+    }
+    const user = await User.create(userPayload);
+
+    // Per mandatory requirement: Take student to login page rather than automatically
+    // granting access to protected content. Do not set session cookie here.
+    return res.status(201).json({
+      success: true,
+      message: 'Account created successfully. Please sign in.',
+      user: user.toSafeJSON(),
     });
-
-    // Issue a session immediately so the user is logged in after registration
-    const sessionToken = createSessionToken();
-    const now = new Date();
-    await Session.create({
-      tokenHash: hashSessionToken(sessionToken),
-      userId: user._id,
-      expiresAt: new Date(now.getTime() + getSessionTtlMs()),
-      lastUsedAt: now,
-      userAgent: req.get('user-agent')?.slice(0, 512) || null,
-      ipAddress: req.ip?.slice(0, 128) || null,
-    });
-
-    user.lastLoginAt = now;
-    await user.save();
-
-    res.cookie(SESSION_COOKIE_NAME, sessionToken, getCookieOptions());
-    return res.status(201).json({ user: user.toSafeJSON() });
   } catch (error) {
     return next(error);
   }
@@ -119,14 +123,20 @@ router.post('/register', registerLimiter, async (req, res, next) => {
 // ── POST /api/auth/login ───────────────────────────────────────────────────
 router.post('/login', loginLimiter, async (req, res, next) => {
   try {
-    const email = normalizeEmail(req.body?.email);
+    const rawIdentifier = req.body?.email || req.body?.username || req.body?.identifier;
     const { password } = req.body || {};
 
-    if (!isValidLoginInput(email, password)) {
-      return res.status(400).json({ error: 'A valid email and password are required.' });
+    const ident = normalizeIdentifier(rawIdentifier);
+    if (!ident.valid || typeof password !== 'string' || password.length === 0 || password.length > 1024) {
+      return res.status(400).json({ error: 'Valid username/email and password are required.' });
     }
 
-    const user = await User.findOne({ email }).select('+passwordHash');
+    const queryConditions = [{ email: ident.email }];
+    if (ident.rawUid) {
+      queryConditions.push({ uid: ident.rawUid });
+    }
+    const user = await User.findOne({ $or: queryConditions }).select('+passwordHash');
+
     const passwordMatches = await bcrypt.compare(password, user?.passwordHash || DUMMY_PASSWORD_HASH);
     if (!user || !user.isActive || !passwordMatches) {
       return res.status(401).json({ error: 'Invalid email or password.' });
@@ -137,7 +147,7 @@ router.post('/login', loginLimiter, async (req, res, next) => {
     await Session.create({
       tokenHash: hashSessionToken(sessionToken),
       userId: user._id,
-      expiresAt: new Date(now.getTime() + getSessionTtlMs()),
+      expiresAt: new Date(now.getTime() + getSessionTtlMs()), // 7-day absolute lifetime
       lastUsedAt: now,
       userAgent: req.get('user-agent')?.slice(0, 512) || null,
       ipAddress: req.ip?.slice(0, 128) || null,

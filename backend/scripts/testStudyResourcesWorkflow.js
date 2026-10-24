@@ -259,7 +259,8 @@ async function runTests() {
   {
     const studentContentRes = await makeRequest({
       path: `/content/${CHAPTER_ID}`,
-      method: 'GET'
+      method: 'GET',
+      cookie: sessionCookie
     });
 
     assert('Student content endpoint returns 200', studentContentRes.status === 200);
@@ -283,7 +284,8 @@ async function runTests() {
   {
     const attempt1Res = await makeRequest({
       path: `/quiz/${CHAPTER_ID}/attempt`,
-      method: 'GET'
+      method: 'GET',
+      cookie: sessionCookie
     });
 
     assert('Fetch quiz attempt returns 200', attempt1Res.status === 200);
@@ -302,7 +304,8 @@ async function runTests() {
     // Randomization Test: Fetch second attempt and verify randomization
     const attempt2Res = await makeRequest({
       path: `/quiz/${CHAPTER_ID}/attempt`,
-      method: 'GET'
+      method: 'GET',
+      cookie: sessionCookie
     });
     attempt2 = attempt2Res.body;
 
@@ -331,7 +334,8 @@ async function runTests() {
       body: {
         attemptId: attempt1.attemptId,
         answers: perfectAnswers
-      }
+      },
+      cookie: sessionCookie
     });
 
     assert('Submit quiz returns 200', submitPerfectRes.status === 200);
@@ -358,7 +362,8 @@ async function runTests() {
       body: {
         attemptId: attempt1.attemptId,
         answers: partialAnswers
-      }
+      },
+      cookie: sessionCookie
     });
 
     assert('Partial score calculated correctly: 3 / 5', submitPartialRes.body?.score === 3);
@@ -381,7 +386,8 @@ async function runTests() {
       body: {
         attemptId: attempt1.attemptId,
         answers: zeroAnswers
-      }
+      },
+      cookie: sessionCookie
     });
 
     assert('Zero score calculated correctly: 0 / 5 (0%)', submitZeroRes.body?.score === 0 && submitZeroRes.body?.percentage === 0);
@@ -392,7 +398,8 @@ async function runTests() {
   {
     const reloadContent = await makeRequest({
       path: `/content/${CHAPTER_ID}`,
-      method: 'GET'
+      method: 'GET',
+      cookie: sessionCookie
     });
 
     assert('Reload content succeeds (200)', reloadContent.status === 200);
@@ -404,7 +411,8 @@ async function runTests() {
     // Verify subsequent quiz attempts continue to work cleanly
     const reAttempt = await makeRequest({
       path: `/quiz/${CHAPTER_ID}/attempt`,
-      method: 'GET'
+      method: 'GET',
+      cookie: sessionCookie
     });
     assert('Subsequent quiz attempt succeeds with 5 questions', reAttempt.body?.questions?.length === 5);
   }

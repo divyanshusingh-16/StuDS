@@ -1,7 +1,7 @@
-require('dotenv').config();
+const path = require('path');
+require('dotenv').config({ path: path.resolve(__dirname, '.env') });
 const dns = require('dns');
 try { dns.setServers(['8.8.8.8', '1.1.1.1']); } catch (e) {}
-const path = require('path');
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
@@ -37,20 +37,18 @@ app.use(cors({
   credentials: true,
 }));
 
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
-app.use('/api', portalRoutes);
-app.use('/api/admin', adminRoutes);
-app.use('/api/auth', authRoutes);
-
-const DB_NAME = process.env.MONGO_DB_NAME || 'StuDS';
-
-mongoose.connect(MONGO_URI, { dbName: DB_NAME, serverSelectionTimeoutMS: 5000 })
-  .then(() => console.log(`Connected to MongoDB (${DB_NAME})`))
-  .catch((err) => console.error('MongoDB connection error:', err.message));
-
 app.get('/', (req, res) => {
   res.status(200).json({ status: 'healthy', message: 'API active' });
 });
+
+app.get('/api/health', (req, res) => {
+  res.status(200).json({ status: 'healthy', message: 'API active' });
+});
+
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+app.use('/api/auth', authRoutes);
+app.use('/api/admin', adminRoutes);
+app.use('/api', portalRoutes);
 
 app.use((err, req, res, next) => {
   console.error(err.stack || err.message);
@@ -64,6 +62,12 @@ app.use((err, req, res, next) => {
     error: message
   });
 });
+
+const DB_NAME = process.env.MONGO_DB_NAME || 'StuDS';
+
+mongoose.connect(MONGO_URI, { dbName: DB_NAME, serverSelectionTimeoutMS: 5000 })
+  .then(() => console.log(`Connected to MongoDB (${DB_NAME})`))
+  .catch((err) => console.error('MongoDB connection error:', err.message));
 
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
