@@ -2,3 +2,5 @@ node_modules/
 .env
 uploads/*
 !uploads/1792019982392-Computer_Networks_Unit1_Chapter1.1_Introduction.pdf
+backups/
+

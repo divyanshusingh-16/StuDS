@@ -9,7 +9,9 @@
     "seed": "node scripts/seed.js",
     "create:super-admin": "node scripts/createSuperAdmin.js",
     "audit:ch1-1": "node scripts/audit_chapter1_1_records.js",
-    "restore:ch1-1": "node scripts/restoreChapter1_1.js"
+    "restore:ch1-1": "node scripts/restoreChapter1_1.js",
+    "test:rag": "node scripts/testRagWorkflow.js",
+    "index:ch1-1": "node scripts/indexChapter1_1.js"
   },
   "keywords": [],
   "author": "",

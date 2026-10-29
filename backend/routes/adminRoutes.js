@@ -500,4 +500,78 @@ router.put('/content/:chapterId/study-resources', requireRole('content_admin', '
   }
 });
 
+// ── Admin RAG Ingestion & Vector Index Management Endpoints ───────────────
+router.post('/content/:chapterId/rag/index', requireRole('content_admin', 'super_admin'), async (req, res) => {
+  try {
+    const { chapterId } = req.params;
+    const { noteId, forceReindex } = req.body || {};
+    const content = await Content.findOne({ chapterId });
+    if (!content) return res.status(404).json({ error: 'Chapter content not found' });
+
+    const note = noteId ? content.notes.id(noteId) : (content.notes && content.notes.find(n => n.status === 'published') || content.notes[0]);
+    if (!note) return res.status(404).json({ error: 'No note found for this chapter to index' });
+
+    let pdfBuffer = null;
+    const pdfUrl = note.fileUrl || note.originalDocumentUrl;
+    if (pdfUrl) {
+      try {
+        const fs = require('fs');
+        const path = require('path');
+        if (pdfUrl.includes('/uploads/')) {
+          const fileName = path.basename(pdfUrl.split('?')[0]);
+          const filePath = path.join(__dirname, '..', 'uploads', fileName);
+          if (fs.existsSync(filePath)) {
+            pdfBuffer = fs.readFileSync(filePath);
+          }
+        } else if (/^https?:\/\//i.test(pdfUrl)) {
+          const fetchRes = await fetch(pdfUrl);
+          if (fetchRes.ok) {
+            const arr = await fetchRes.arrayBuffer();
+            pdfBuffer = Buffer.from(arr);
+          }
+        }
+      } catch (bufErr) {
+        console.warn('[Admin RAG Index] Notice: PDF buffer load error, falling back to text:', bufErr.message);
+      }
+    }
+
+    const { indexChapterDocument } = require('../services/ragService');
+    const result = await indexChapterDocument({
+      chapterId,
+      noteId: note._id,
+      pdfBuffer,
+      rawText: note.rawExtractedText || note.content || content.fullNotesMarkdown,
+      docTitle: note.title || 'Chapter Study Material',
+      sourcePdfUrl: note.fileUrl || note.originalDocumentUrl,
+      sourcePdfName: note.fileName || note.originalDocumentName,
+      isPublished: note.status === 'published' || content.processingStatus === 'published',
+      forceReindex: Boolean(forceReindex)
+    });
+
+    if (!result.success && !result.alreadyIndexed) {
+      return res.status(500).json({ success: false, error: result.error });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: 'Chapter document indexed into vector chunks successfully.',
+      ...result
+    });
+  } catch (error) {
+    console.error('[Admin RAG Index Error]', error.message);
+    return res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+router.get('/content/:chapterId/rag/status', requireRole('content_admin', 'super_admin'), async (req, res) => {
+  try {
+    const { chapterId } = req.params;
+    const { getChapterRagStatus } = require('../services/ragService');
+    const status = await getChapterRagStatus(chapterId);
+    return res.status(200).json({ success: true, ...status });
+  } catch (error) {
+    return res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 module.exports = router;

@@ -41,11 +41,12 @@ async function extractWithPdfParse(pdfBuffer) {
   if (pdfParseModule.PDFParse) {
     const parser = new pdfParseModule.PDFParse({ data: pdfBuffer });
     const res = await parser.getText();
-    const pageCount = (await parser.getInfo())?.numPages || 1;
+    const pageCount = (await parser.getInfo())?.numPages || res.total || (res.pages ? res.pages.length : 1);
     await parser.destroy();
     return {
       text: (res?.text || '').trim(),
-      pageCount
+      pageCount,
+      pages: Array.isArray(res?.pages) ? res.pages.map(p => ({ num: p.num || 1, text: (p.text || '').trim() })) : []
     };
   }
 
@@ -54,7 +55,8 @@ async function extractWithPdfParse(pdfBuffer) {
     const res = await pdfParseModule.default(pdfBuffer);
     return {
       text: (res.text || '').trim(),
-      pageCount: res.numpages || 1
+      pageCount: res.numpages || 1,
+      pages: [{ num: 1, text: (res.text || '').trim() }]
     };
   }
 
@@ -159,7 +161,11 @@ function createSemanticChunks(text, targetChunkSize = 900) {
       chunks.push({
         chunkIndex: chunkIndex++,
         text: currentChunk.trim(),
-        wordCount: words
+        wordCount: words,
+        charCount: currentChunk.trim().length,
+        pageNumber: 1,
+        startPage: 1,
+        endPage: 1
       });
       currentChunk = trimmed;
     } else {
@@ -172,7 +178,100 @@ function createSemanticChunks(text, targetChunkSize = 900) {
     chunks.push({
       chunkIndex: chunkIndex++,
       text: currentChunk.trim(),
-      wordCount: words
+      wordCount: words,
+      charCount: currentChunk.trim().length,
+      pageNumber: 1,
+      startPage: 1,
+      endPage: 1
+    });
+  }
+
+  return chunks;
+}
+
+/**
+ * Splits extracted page texts into structured semantic chunks with page citations and overlap.
+ * Each chunk records its chunkIndex, text, wordCount, charCount, pageNumber, startPage, and endPage.
+ */
+function createPageAwareSemanticChunks(pages, options = {}) {
+  const targetChunkSize = options.targetChunkSize || 900;
+  const overlapSize = options.overlapSize || 150;
+
+  if (!Array.isArray(pages) || pages.length === 0) {
+    if (typeof options.text === 'string' && options.text.trim()) {
+      return createSemanticChunks(options.text, targetChunkSize);
+    }
+    return [];
+  }
+
+  const chunks = [];
+  let chunkIndex = 0;
+  let currentChunkText = '';
+  let currentStartPage = pages[0].num || pages[0].pageNumber || 1;
+  let currentEndPage = currentStartPage;
+
+  for (const page of pages) {
+    const pageNum = page.num || page.pageNumber || 1;
+    const pageRawText = (page.text || '').trim();
+    if (!pageRawText) continue;
+
+    // Split page text by double newlines into paragraphs
+    const paragraphs = pageRawText.split(/\n\s*\n/);
+
+    for (const para of paragraphs) {
+      const trimmedPara = para.trim();
+      if (!trimmedPara) continue;
+
+      // If a single paragraph is excessively long, split by sentences
+      const segments = trimmedPara.length > targetChunkSize * 1.5
+        ? trimmedPara.match(/[^.!?]+[.!?]+(?:\s+|$)|[^.!?]+$/g) || [trimmedPara]
+        : [trimmedPara];
+
+      for (const seg of segments) {
+        const trimmedSeg = seg.trim();
+        if (!trimmedSeg) continue;
+
+        if (currentChunkText.length + trimmedSeg.length > targetChunkSize && currentChunkText.length >= 250) {
+          const words = (currentChunkText.match(/\b\w+\b/g) || []).length;
+          chunks.push({
+            chunkIndex: chunkIndex++,
+            text: currentChunkText.trim(),
+            wordCount: words,
+            charCount: currentChunkText.trim().length,
+            pageNumber: currentStartPage,
+            startPage: currentStartPage,
+            endPage: currentEndPage
+          });
+
+          // Calculate overlap from the end of the current chunk
+          let overlapText = '';
+          if (overlapSize > 0 && currentChunkText.length > overlapSize) {
+            const rawSlice = currentChunkText.slice(-overlapSize);
+            const spacePos = rawSlice.indexOf(' ');
+            overlapText = (spacePos !== -1 ? rawSlice.slice(spacePos + 1) : rawSlice).trim();
+          }
+
+          currentChunkText = overlapText ? `${overlapText} ${trimmedSeg}` : trimmedSeg;
+          currentStartPage = currentEndPage;
+          currentEndPage = pageNum;
+        } else {
+          currentChunkText = currentChunkText ? `${currentChunkText}\n\n${trimmedSeg}` : trimmedSeg;
+          currentEndPage = pageNum;
+        }
+      }
+    }
+  }
+
+  if (currentChunkText.trim()) {
+    const words = (currentChunkText.match(/\b\w+\b/g) || []).length;
+    chunks.push({
+      chunkIndex: chunkIndex++,
+      text: currentChunkText.trim(),
+      wordCount: words,
+      charCount: currentChunkText.trim().length,
+      pageNumber: currentStartPage,
+      startPage: currentStartPage,
+      endPage: currentEndPage
     });
   }
 
@@ -186,12 +285,14 @@ function createSemanticChunks(text, targetChunkSize = 900) {
 async function extractTextFromPdf(pdfBuffer) {
   let rawText = '';
   let pageCount = 1;
+  let pages = [];
   let usedOcr = false;
 
   try {
     const res = await extractWithPdfParse(pdfBuffer);
     rawText = res.text;
     pageCount = res.pageCount;
+    pages = res.pages || [];
   } catch (parseErr) {
     console.warn('[PDFExtractor] pdf-parse direct extraction error:', parseErr.message);
   }
@@ -202,6 +303,7 @@ async function extractTextFromPdf(pdfBuffer) {
     if (ocrText && ocrText.length >= 100) {
       rawText = ocrText;
       usedOcr = true;
+      pages = [{ num: 1, text: ocrText }];
     }
   }
 
@@ -210,6 +312,7 @@ async function extractTextFromPdf(pdfBuffer) {
       status: 'no_text',
       rawText: '',
       pageCount,
+      pages: [],
       charCount: 0,
       wordCount: 0,
       chunks: [],
@@ -223,12 +326,19 @@ async function extractTextFromPdf(pdfBuffer) {
 
   const validation = validateSourceText(rawText);
   const words = (rawText.match(/\b\w+\b/g) || []).length;
-  const chunks = createSemanticChunks(rawText);
+  
+  let chunks = [];
+  if (pages.length > 0) {
+    chunks = createPageAwareSemanticChunks(pages);
+  } else {
+    chunks = createSemanticChunks(rawText);
+  }
 
   return {
     status: validation.isValid ? 'success' : 'invalid_text',
     rawText,
     pageCount,
+    pages,
     charCount: rawText.length,
     wordCount: words,
     chunks,
@@ -241,5 +351,6 @@ module.exports = {
   extractTextFromPdf,
   validateSourceText,
   createSemanticChunks,
+  createPageAwareSemanticChunks,
   extractWithPdfParse
 };

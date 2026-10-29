@@ -452,6 +452,30 @@ async function publishChapterResources(chapterId, user) {
   content.processingError = '';
   await content.save();
 
+  // Safely synchronize RAG chunks to published status (non-blocking / error-isolated)
+  try {
+    const DocumentChunk = require('../models/DocumentChunk');
+    const { indexChapterDocument } = require('./ragService');
+    const publishedNote = (content.notes || []).find(n => n.status === 'published') || (content.notes || [])[content.notes.length - 1];
+    if (publishedNote) {
+      await DocumentChunk.updateMany({ chapterId, noteId: publishedNote._id }, { isPublished: true });
+      const chunkCount = await DocumentChunk.countDocuments({ chapterId, isPublished: true });
+      if (chunkCount === 0 && (publishedNote.fileUrl || publishedNote.rawExtractedText)) {
+        await indexChapterDocument({
+          chapterId,
+          noteId: publishedNote._id,
+          rawText: publishedNote.rawExtractedText,
+          docTitle: publishedNote.title || 'Chapter Study Material',
+          sourcePdfUrl: publishedNote.fileUrl,
+          sourcePdfName: publishedNote.fileName,
+          isPublished: true
+        });
+      }
+    }
+  } catch (ragPubErr) {
+    console.warn('[Pipeline] Non-critical RAG sync notice on publish:', ragPubErr.message);
+  }
+
   return {
     success: true,
     message: 'Chapter learning resources approved and published to students successfully.',

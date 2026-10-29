@@ -653,11 +653,21 @@ contentSchema.index({ fullNotesMarkdown: 'text', shortNotes: 'text' }, { weights
 | `GET` | `/api/quiz/:chapterId/attempt` | Authenticated | Pulls 5 random questions from chapter question bank with answers and explanations redacted. |
 | `POST` | `/api/quiz/:chapterId/submit` | Authenticated | Validates student answers server-side, calculates percentage score, and reveals explanations. |
 
+### Student Chapter-Aware AI Doubt Solving Endpoints (`/api/doubt`)
+*Note: Requires authenticated student or admin session. Rate-limited to 30 questions / 15m.*
+
+| Method | Endpoint | Access Level | Description |
+| :--- | :--- | :--- | :--- |
+| `POST` | `/api/doubt/ask` | Authenticated | Chapter-scoped RAG doubt answering. Grounded strictly in verified textbook chunks with exact page citations (`[Page X]`). Rejects out-of-scope questions with insufficient-context status to prevent hallucination. |
+| `GET` | `/api/doubt/status/:chapterId` | Authenticated | Inspects chapter vector indexing status, indexed chunk count, and source document metadata. |
+
 ### Admin Pipeline & Content Routes (`/api/admin`)
 *All admin endpoints require valid session authentication with `content_admin` or `super_admin` role and trusted origin verification.*
 
 | Method | Endpoint | Allowed Roles | Description |
 | :--- | :--- | :--- | :--- |
+| `POST` | `/api/admin/content/:chapterId/rag/index` | `content_admin`, `super_admin` | Safely chunks and embeds approved chapter PDF into 768-dim vector chunks with page boundaries. Deduplicates identical content hashes without re-embedding. |
+| `GET` | `/api/admin/content/:chapterId/rag/status` | `content_admin`, `super_admin` | Inspects chapter vector indexing metrics and chunk counts. |
 | `POST` | `/api/admin/subject` | `super_admin` | Creates a new subject under a department and course. |
 | `POST` | `/api/admin/unit` | `super_admin` | Creates a new unit and its chapters under a subject. |
 | `POST` | `/api/admin/content/upsert` | `content_admin`, `super_admin` | Atomically creates or updates chapter content. |
@@ -707,6 +717,7 @@ college study material project/
 │   │   └── uploadMiddleware.js         # Multer in-memory storage & PDF/DOCX MIME filter
 │   ├── models/
 │   │   ├── Content.js                  # Chapter materials, notes, quizzes, PYQs, drafts schema
+│   │   ├── DocumentChunk.js            # 768-dim page-aware vector chunks schema for chapter RAG
 │   │   ├── Session.js                  # Database-backed session schema with TTL index & lastUsedAt
 │   │   ├── Subject.js                  # Subject schema with department & semester indexing
 │   │   ├── Unit.js                     # Unit and chapter sub-document schemas
@@ -714,19 +725,22 @@ college study material project/
 │   ├── routes/
 │   │   ├── adminRoutes.js              # Protected administrative & pipeline studio endpoints
 │   │   ├── authRoutes.js               # Authentication routes (register, login, logout, /me)
-│   │   └── portalRoutes.js             # Authenticated student portal query, search & quiz routes
+│   │   └── portalRoutes.js             # Authenticated student portal query, search, quiz & doubt routes
 │   ├── services/
 │   │   ├── aiService.js                # Google Gemini 1.5 Flash 5-point summarization logic
 │   │   ├── curatedCurriculum.js        # Verified curriculum package for Computer Networks Ch 1.1
+│   │   ├── embeddingService.js         # Gemini text-embedding-004 & deterministic semantic fallback
 │   │   ├── noteCleanerService.js       # Notes cleaner & syllabus coverage verification
-│   │   ├── pdfTextExtractor.js         # Dual extraction (pdf-parse / Gemini OCR) & semantic chunking
+│   │   ├── pdfTextExtractor.js         # Dual extraction, page citations & overlapping semantic chunking
 │   │   ├── pipelineService.js          # 10-stage safe PDF-to-AI pipeline orchestration
+│   │   ├── ragService.js               # Chapter-aware RAG vector search, retrieval & doubt answering
 │   │   └── studyResourcesService.js    # Grounded Gemini generation, shortfall reporting, MCQ check
 │   └── scripts/
 │       ├── audit_chapter1_1_records.js # Curriculum data consistency and audit verification tool
 │       ├── cleanUid.js                 # Database maintenance tool unsetting null UIDs
 │       ├── createSuperAdmin.js         # CLI tool to securely initialize the first super-admin
 │       ├── importDocx.js               # Utility script to test Mammoth DOCX to Markdown conversion
+│       ├── indexChapter1_1.js          # Safe RAG ingestion script for Computer Networks Chapter 1.1
 │       ├── inspectRawNotes.js          # CLI tool to inspect extracted note buffers and chunks
 │       ├── restoreChapter1_1.js        # Recovery script for Chapter 1.1 official records
 │       ├── securityTest.js             # 42-point automated security & regression testing suite
@@ -736,6 +750,7 @@ college study material project/
 │       ├── testCleanedNotesWorkflow.js # Automated verification for note cleaner service
 │       ├── testNoteCleaner.js          # Unit tests for note cleaning regex rules
 │       ├── testPhase1PdfWorkflow.js    # Automated tests for PDF upload & streaming
+│       ├── testRagWorkflow.js          # 37-point automated verification for chapter-aware RAG
 │       ├── testSafePdfPipeline.js      # 37-point test suite for safe pipeline orchestration
 │       ├── testSearch.js               # Search scoring algorithm and ranking test suite
 │       └── testStudyResourcesWorkflow.js# Test suite for Gemini resource synthesis

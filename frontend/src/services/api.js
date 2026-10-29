@@ -363,3 +363,22 @@ export const submitQuizAnswers = async (chapterId, attemptId, answers) => {
   return data;
 };
 
+export const askChapterDoubt = async (chapterId, question, history = []) => {
+  const res = await apiFetch('/doubt/ask', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ chapterId, question, history }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || 'Failed to submit question to AI Doubt Solver');
+  return data;
+};
+
+export const fetchChapterRagStatus = async (chapterId) => {
+  const res = await apiFetch(`/doubt/status/${chapterId}`);
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) return { isIndexed: false, chunkCount: 0 };
+  return data;
+};
+
+

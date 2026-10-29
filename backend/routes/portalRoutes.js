@@ -556,4 +556,63 @@ router.post('/quiz/:chapterId/submit', async (req, res) => {
   }
 });
 
+// ── Chapter-Aware RAG Doubt Solving Endpoints ──────────────────────────────
+const rateLimit = require('express-rate-limit');
+const doubtLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many doubt solving requests. Please wait a few minutes before asking more questions.' }
+});
+
+router.post('/doubt/ask', doubtLimiter, async (req, res) => {
+  try {
+    const { question, chapterId, history } = req.body;
+    if (!question || typeof question !== 'string') {
+      return res.status(400).json({ error: 'A valid question string is required.' });
+    }
+    if (!chapterId || typeof chapterId !== 'string') {
+      return res.status(400).json({ error: 'A valid chapterId is required.' });
+    }
+
+    const cleanQuestion = question.trim();
+    if (cleanQuestion.length < 3) {
+      return res.status(400).json({ error: 'Question must be at least 3 characters long.' });
+    }
+    if (cleanQuestion.length > 1000) {
+      return res.status(400).json({ error: 'Question exceeds maximum limit of 1000 characters.' });
+    }
+
+    const { answerStudentDoubt } = require('../services/ragService');
+    const result = await answerStudentDoubt({
+      question: cleanQuestion,
+      chapterId,
+      conversationHistory: Array.isArray(history) ? history.slice(-6) : [],
+      userId: req.user?._id
+    });
+
+    return res.status(200).json({
+      success: true,
+      ...result
+    });
+  } catch (error) {
+    console.error('[RAG Doubt Ask]', error.message);
+    const status = error.message.includes('not found') ? 404 : 500;
+    return res.status(status).json({ success: false, error: error.message });
+  }
+});
+
+router.get('/doubt/status/:chapterId', async (req, res) => {
+  try {
+    const { chapterId } = req.params;
+    const { getChapterRagStatus } = require('../services/ragService');
+    const status = await getChapterRagStatus(chapterId);
+    return res.status(200).json({ success: true, ...status });
+  } catch (error) {
+    console.error('[RAG Doubt Status]', error.message);
+    return res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 module.exports = router;
