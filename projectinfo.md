@@ -61,11 +61,12 @@ Administrators have access to a secure, role-restricted dashboard with a **Safe 
 | **Turndown** | `^7.2.4` | HTML-to-Markdown converter turning Mammoth HTML output into clean, structured Markdown. |
 | **Dotenv** | `^17.4.2` | Loads environment configurations (`PORT`, `MONGO_URI`, API keys) from `.env` files into `process.env`. |
 | **Nodemon** | `^3.1.14` | Development utility that automatically restarts the Node server upon code changes. |
+| **Express-Rate-Limit** (doubt) | `^8.6.2` | Additional rate-limiter instance on doubt-solving endpoints (30 questions / 15m per IP). |
 
 ### External Services & Cloud APIs
 | Service / SDK | Version | Purpose in STUDS |
 | :--- | :--- | :--- |
-| **Google Generative AI (`@google/generative-ai`)** | `^0.24.1` | Interacts with **Gemini 2.0 Flash / 1.5 Flash / 1.5 Pro** for source-grounded learning resource generation, 20-MCQ question bank synthesis, 5-point chapter summaries, and multimodal PDF OCR fallback. |
+| **Google Generative AI (`@google/generative-ai`)** | `^0.24.1` | Interacts with **Gemini 2.0 Flash / 1.5 Flash / 1.5 Pro** for source-grounded learning resource generation, 20-MCQ question bank synthesis, 5-point chapter summaries, multimodal PDF OCR fallback, and `text-embedding-004` vector embeddings for chapter-aware RAG. |
 | **Cloudinary (`cloudinary`)** | `^2.10.0` | Cloud media storage service used to store past exam paper PDFs and lecture note attachments streamed securely from the backend. |
 
 ### Frontend Stack
@@ -109,35 +110,41 @@ college study material project/
 │   │   └── uploadMiddleware.js         # Multer in-memory storage & PDF/DOCX magic-byte filter
 │   ├── models/
 │   │   ├── Content.js                  # Chapter materials, notes, quizzes, PYQs, drafts schema
+│   │   ├── DocumentChunk.js            # 768-dim page-aware vector chunks schema for chapter RAG
 │   │   ├── Session.js                  # Mongoose schema for user sessions with TTL index & lastUsedAt
 │   │   ├── Subject.js                  # Mongoose schema for academic subjects & semester mappings
 │   │   ├── Unit.js                     # Mongoose schema for syllabus units and sub-chapters
 │   │   └── User.js                     # Mongoose schema with College UID (sparse unique index), email, roles
 │   ├── routes/
-│   │   ├── adminRoutes.js              # Protected admin endpoints (pipeline studio, notes, upload)
+│   │   ├── adminRoutes.js              # Protected admin endpoints (pipeline studio, notes, upload, RAG indexing)
 │   │   ├── authRoutes.js               # Authentication endpoints (register, login, logout, /me)
-│   │   └── portalRoutes.js             # Authenticated student portal endpoints (subjects, units, search, quiz)
+│   │   └── portalRoutes.js             # Authenticated student portal endpoints (subjects, units, search, quiz, doubt)
 │   ├── services/
 │   │   ├── aiService.js                # Google Gemini 1.5 Flash 5-point chapter summarization
 │   │   ├── curatedCurriculum.js        # Verified curriculum package for Computer Networks Ch 1.1
+│   │   ├── embeddingService.js         # Gemini text-embedding-004 & deterministic semantic fallback
 │   │   ├── noteCleanerService.js       # Cleans PDF notes, formats Markdown, checks syllabus coverage
-│   │   ├── pdfTextExtractor.js         # Dual extraction (pdf-parse / Gemini OCR) & semantic chunking
+│   │   ├── pdfTextExtractor.js         # Dual extraction (pdf-parse / Gemini OCR), page citations & overlapping chunks
 │   │   ├── pipelineService.js          # 10-stage safe PDF-to-AI pipeline orchestration
+│   │   ├── ragService.js               # Chapter-aware RAG vector search, retrieval & doubt answering
 │   │   └── studyResourcesService.js    # Grounded Gemini generation, shortfall reporting, MCQ check
 │   └── scripts/
 │       ├── audit_chapter1_1_records.js # Database consistency and audit verification utility
 │       ├── cleanUid.js                 # Database maintenance tool unsetting null UID fields
 │       ├── createSuperAdmin.js         # CLI utility to create the initial super_admin safely
 │       ├── importDocx.js               # Utility script to test Mammoth DOCX to Markdown conversion
+│       ├── indexChapter1_1.js          # Safe RAG ingestion script for Computer Networks Chapter 1.1
 │       ├── inspectRawNotes.js          # CLI script to inspect raw text extraction buffers
 │       ├── restoreChapter1_1.js        # Recovery script restoring Chapter 1.1 records from backup
 │       ├── securityTest.js             # 42-point automated security & regression verification test suite
 │       ├── seed.js                     # Database seeding script for sample university curricula
 │       ├── syncSem5.js                 # Semester 5 subject synchronization utility
 │       ├── syncSem5Syllabus.js         # Full Computer Networks & Semester 5 syllabus seeder
+│       ├── test_api_mapping.js         # API route mapping and endpoint connectivity validation
 │       ├── testCleanedNotesWorkflow.js # Automated verification for note cleaner service
 │       ├── testNoteCleaner.js          # Unit tests for note cleaning regex rules
 │       ├── testPhase1PdfWorkflow.js    # Automated tests for PDF upload & streaming
+│       ├── testRagWorkflow.js          # 37-point automated verification for chapter-aware RAG
 │       ├── testSafePdfPipeline.js      # 37-point test suite for safe pipeline orchestration
 │       ├── testSearch.js               # Search scoring algorithm and ranking test runner
 │       └── testStudyResourcesWorkflow.js# Test suite for Gemini resource synthesis
@@ -186,12 +193,17 @@ college study material project/
 
 ### Backend Services & Scripts
 - **`backend/services/pipelineService.js`**: Central coordinator for the 10-stage PDF-to-AI pipeline. Enforces draft staging isolation and atomic publication.
-- **`backend/services/pdfTextExtractor.js`**: High-throughput PDF extraction via `pdf-parse` with Gemini Multimodal OCR fallback and semantic chunk splitting (~600–1200 chars).
+- **`backend/services/pdfTextExtractor.js`**: High-throughput PDF extraction via `pdf-parse` with Gemini Multimodal OCR fallback, page-boundary tracking, and overlapping semantic chunk splitting.
 - **`backend/services/studyResourcesService.js`**: Prompts Gemini 2.0 / 1.5 Flash at low temperature (`0.2`), validates 4-option MCQs, and reports factual shortfalls instead of hallucinating.
 - **`backend/services/noteCleanerService.js`**: Cleans headers/footers, converts text into Markdown tables, preserves network ASCII diagrams, and checks syllabus coverage.
 - **`backend/services/curatedCurriculum.js`**: Verified domain package for Semester 5 Computer Networks (Unit 1, Chapter 1.1) containing verified MCQs, notes, and definitions.
+- **`backend/services/embeddingService.js`**: Generates 768-dimensional vector embeddings using Google Gemini `text-embedding-004`. Falls back to a deterministic semantic hashing algorithm when the API is unavailable.
+- **`backend/services/ragService.js`**: Chapter-aware Retrieval-Augmented Generation (RAG) service. Performs cosine-similarity vector search over `DocumentChunk` collection, retrieves top-K chunks with page citations (`[Page X]`), and feeds verified context to Gemini for grounded doubt answering. Rejects out-of-scope questions with an insufficient-context status.
 - **`backend/scripts/securityTest.js`**: Automated 42-point security and regression test suite verifying health checks, mandatory student auth, student registration journey, role spoofing prevention, College UID login, student-to-admin isolation, and search ranking regression.
 - **`backend/scripts/testSearch.js`**: Search ranking unit test runner testing query normalization, suffix stemming, and score thresholds.
+- **`backend/scripts/testRagWorkflow.js`**: 37-point automated verification for the chapter-aware RAG system — covers unauthenticated rejection, role isolation, input validation, vector retrieval relevance, page attribution, anti-hallucination guardrail, multi-turn follow-ups, and admin deduplication.
+- **`backend/scripts/indexChapter1_1.js`**: Safe RAG ingestion helper that chunks and embeds the approved Computer Networks Chapter 1.1 PDF into 99 page-aware `DocumentChunk` records without altering existing notes, quizzes, or study resources.
+- **`backend/scripts/test_api_mapping.js`**: API route mapping and endpoint connectivity validator.
 - **`backend/scripts/cleanUid.js`**: Maintenance script that removes null UID fields to preserve MongoDB's sparse unique index.
 
 ---
@@ -648,11 +660,21 @@ module.exports = mongoose.model('Content', contentSchema);
 | `GET` | `/api/quiz/:chapterId/attempt` | Authenticated | Generates a 5-question random attempt with answers/explanations redacted. |
 | `POST` | `/api/quiz/:chapterId/submit` | Authenticated | Validates student answers server-side and reveals scores and explanations. |
 
+### Student Chapter-Aware RAG Doubt Solving Routes (`/api/doubt`)
+*Note: Requires authenticated student or admin session. Rate-limited to 30 questions / 15m.*
+
+| Method | Endpoint | Access Level | Description |
+| :--- | :--- | :--- | :--- |
+| `POST` | `/api/doubt/ask` | Authenticated | Chapter-scoped RAG doubt answering. Grounded strictly in verified textbook chunks with exact page citations (`[Page X]`). Rejects out-of-scope questions with insufficient-context status to prevent hallucination. |
+| `GET` | `/api/doubt/status/:chapterId` | Authenticated | Inspects the chapter's vector indexing status, indexed chunk count, and source document metadata. |
+
 ### Admin Pipeline & Management Routes (`/api/admin`)
 *All admin endpoints require session authentication with `content_admin` or `super_admin` role and trusted origin verification.*
 
 | Method | Endpoint | Role Guard | Description |
 | :--- | :--- | :--- | :--- |
+| `POST` | `/api/admin/content/:chapterId/rag/index` | `content_admin`, `super_admin` | Safely chunks and embeds approved chapter PDF into 768-dim vector chunks with page boundaries. Deduplicates identical content hashes without re-embedding. |
+| `GET` | `/api/admin/content/:chapterId/rag/status` | `content_admin`, `super_admin` | Inspects chapter vector indexing metrics and chunk counts. |
 | `POST` | `/api/admin/subject` | `super_admin` | Creates a new subject in the curriculum. |
 | `POST` | `/api/admin/unit` | `super_admin` | Adds a new unit and sub-chapters under a subject. |
 | `POST` | `/api/admin/content/upsert` | `content_admin`, `super_admin` | Atomically creates or replaces chapter content. |
@@ -702,9 +724,13 @@ module.exports = mongoose.model('Content', contentSchema);
    - AI generation writes directly to isolated draft fields (`draftStudyResources`, `draftQuizQuestions`, `draftFullNotesMarkdown`). The student API strips drafts, ensuring students only view verified, published curriculum content.
 9. **Shortfall Reporting vs Hallucination Prevention**:
    - When source documents are brief, Gemini returns only verified questions and reports an explicit shortfall reason rather than inventing ungrounded examination questions.
-10. **Semantic Chunking for Future RAG / Embeddings**:
-    - Notes are split into 600–1200 character chunks respecting paragraph boundaries, providing pre-processed vectors for future AI doubt-solving.
-11. **Defensive API Hardening**:
+10. **Chapter-Aware RAG Doubt Solving**:
+    - Approved chapter PDFs are chunked into 768-dimensional vector embeddings (`text-embedding-004`) and stored in the `DocumentChunk` collection with page-boundary metadata.
+    - Student doubt questions are embedded and matched against chapter vectors via cosine similarity.
+    - Gemini answers are strictly grounded in retrieved chunks with exact `[Page X]` citations. Out-of-scope questions receive an explicit insufficient-context rejection instead of hallucinated answers.
+11. **Semantic Chunking with Page Attribution**:
+    - Notes are split into overlapping chunks (~600–1200 chars) respecting paragraph boundaries and preserving start/end page numbers, powering both the RAG system and future vector search.
+12. **Defensive API Hardening**:
     - **Timing Attack Mitigation**: When verifying passwords, if a user identifier does not exist, bcrypt still runs against a constant dummy hash (`DUMMY_PASSWORD_HASH`) to prevent account enumeration.
     - **Explicit Database Targeting**: `server.js` connects with `{ dbName: process.env.MONGO_DB_NAME || 'StuDS' }`, preventing Atlas URIs from misrouting.
     - **Dynamic Media Normalization**: Localhost URLs in media attachments are dynamically rewritten to the active production host.
@@ -833,6 +859,7 @@ STUDS provides comprehensive automated test suites located in `backend/scripts/`
 | **Chapter-Aware RAG Suite** (`testRagWorkflow.js`) | `node scripts/testRagWorkflow.js` | **37 test assertions**: Verifies unauthenticated 401 rejection on doubt & RAG admin endpoints, student role isolation, input validation, vector retrieval relevance, page attribution (`[Page X]`), comparative query handling, anti-hallucination insufficient context guardrail, multi-turn follow-ups, and admin document deduplication. |
 | **Chapter 1.1 Safe Ingestion & Verification** (`indexChapter1_1.js`) | `npm run index:ch1-1` | Safely chunks and embeds approved Chapter 1.1 PDF into 99 page-aware vector chunks without modifying or reseeding existing notes, quizzes, or resources. |
 | **Study Resources Suite** (`testStudyResourcesWorkflow.js`) | `node scripts/testStudyResourcesWorkflow.js` | Verifies Gemini generation, missing-resource detection, 4-option MCQ structure, and shortfall alert handling. |
+| **API Mapping Suite** (`test_api_mapping.js`) | `node scripts/test_api_mapping.js` | Validates API route mapping and endpoint connectivity across all registered routes. |
 | **UID Index Cleaner** (`cleanUid.js`) | `node scripts/cleanUid.js` | Unsets null UID keys across the user collection to maintain sparse unique index integrity. |
 | **Chapter 1.1 Audit & Backup** (`audit_chapter1_1_records.js`) | `npm run audit:ch1-1` | Audits Chapter 1.1 database records, verifies backups, and validates official curriculum data integrity. |
 
@@ -867,8 +894,10 @@ Publishes Materials to Students                           Explores 4-in-1 Study 
 1. **Setup**: The college super-admin creates the subjects and units for each semester.
 2. **Authoring & Ingestion**: Academic admins select a chapter, upload lecture PDFs or Word documents, and extract and clean the text.
 3. **Safe AI Enhancement**: Admins trigger Gemini AI to create short notes, important topics, key definitions, revision guides, and practice MCQs into an isolated staging draft.
-4. **Curation & Publication**: Admins inspect, edit, and approve the draft before executing an atomic publish.
-5. **Student Authentication**: Students register via `/register` with their College UID or email and sign in on `/login`.
-6. **Discovery**: Students configure their degree stream, select their semester, and access organized course materials.
-7. **Search**: Students use `Ctrl + K` to search across all notes with weighted relevance scoring and jump straight to relevant concepts.
-8. **Self-Assessment**: Students test their mastery using chapter-specific interactive quizzes with immediate score calculation and answer explanations.
+4. **RAG Indexing**: After publication, admins optionally run the RAG indexer (`POST /api/admin/content/:chapterId/rag/index`) to embed the approved PDF into 768-dim vector chunks for doubt-solving.
+5. **Curation & Publication**: Admins inspect, edit, and approve the draft before executing an atomic publish.
+6. **Student Authentication**: Students register via `/register` with their College UID or email and sign in on `/login`.
+7. **Discovery**: Students configure their degree stream, select their semester, and access organized course materials.
+8. **Search**: Students use `Ctrl + K` to search across all notes with weighted relevance scoring and jump straight to relevant concepts.
+9. **Self-Assessment**: Students test their mastery using chapter-specific interactive quizzes with immediate score calculation and answer explanations.
+10. **Doubt Solving**: Students ask textbook-grounded questions via `POST /api/doubt/ask`. Answers are cited with exact page references (`[Page X]`) from verified course PDFs.

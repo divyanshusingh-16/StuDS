@@ -315,6 +315,19 @@ router.get('/search', async (req, res) => {
   }
 });
 
+function normalizeMediaUrl(url, req) {
+  if (!url || typeof url !== 'string') return url;
+  if (/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?/i.test(url)) {
+    const host = req.get('x-forwarded-host') || req.get('host');
+    if (host && !host.includes('localhost') && !host.includes('127.0.0.1')) {
+      const proto = req.get('x-forwarded-proto') || req.protocol || 'https';
+      const path = url.replace(/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?/, '');
+      return `${proto}://${host}${path}`;
+    }
+  }
+  return url;
+}
+
 router.get('/content/:chapterId', async (req, res) => {
   try {
     const { chapterId } = req.params;
@@ -323,19 +336,6 @@ router.get('/content/:chapterId', async (req, res) => {
     if (!content) {
       return res.status(404).json({ error: 'No study materials uploaded for this chapter yet.' });
     }
-    
-    const normalizeMediaUrl = (url) => {
-      if (!url || typeof url !== 'string') return url;
-      if (/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?/i.test(url)) {
-        const host = req.get('host');
-        if (host && !host.includes('localhost') && !host.includes('127.0.0.1')) {
-          const proto = req.get('x-forwarded-proto') || req.protocol || 'https';
-          const path = url.replace(/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?/, '');
-          return `${proto}://${host}${path}`;
-        }
-      }
-      return url;
-    };
 
     // Only return published notes to students & dynamically normalize media URLs
     if (content.notes && Array.isArray(content.notes)) {
@@ -343,15 +343,15 @@ router.get('/content/:chapterId', async (req, res) => {
         .filter(note => note.status === 'published')
         .map(note => ({
           ...note,
-          fileUrl: normalizeMediaUrl(note.fileUrl),
-          originalDocumentUrl: normalizeMediaUrl(note.originalDocumentUrl)
+          fileUrl: normalizeMediaUrl(note.fileUrl, req),
+          originalDocumentUrl: normalizeMediaUrl(note.originalDocumentUrl, req)
         }));
     }
 
     if (content.pastPapers && Array.isArray(content.pastPapers)) {
       content.pastPapers = content.pastPapers.map(pyq => ({
         ...pyq,
-        fileUrl: normalizeMediaUrl(pyq.fileUrl)
+        fileUrl: normalizeMediaUrl(pyq.fileUrl, req)
       }));
     }
 
@@ -591,6 +591,13 @@ router.post('/doubt/ask', doubtLimiter, async (req, res) => {
       conversationHistory: Array.isArray(history) ? history.slice(-6) : [],
       userId: req.user?._id
     });
+
+    if (result && Array.isArray(result.sources)) {
+      result.sources = result.sources.map(s => ({
+        ...s,
+        sourcePdfUrl: normalizeMediaUrl(s.sourcePdfUrl, req)
+      }));
+    }
 
     return res.status(200).json({
       success: true,

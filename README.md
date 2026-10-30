@@ -903,6 +903,10 @@ Located in `backend/scripts/`:
 | `testSafePdfPipeline.js` | `node scripts/testSafePdfPipeline.js` | **37-point automated test suite** across 8 groups verifying the 10-stage safe pipeline and staging draft isolation. |
 | `testCleanedNotesWorkflow.js`| `node scripts/testCleanedNotesWorkflow.js`| End-to-end tests for boilerplate cleaning, markdown tables, and syllabus coverage. |
 | `testStudyResourcesWorkflow.js`| `node scripts/testStudyResourcesWorkflow.js`| Tests Gemini generation, missing-resource detection, and shortfall alerts. |
+| `testRagWorkflow.js` | `node scripts/testRagWorkflow.js` | **37-point RAG test suite**: Verifies unauthenticated rejection, role isolation, vector retrieval, page attribution (`[Page X]`), anti-hallucination guardrail, multi-turn follow-ups, and admin deduplication. |
+| `indexChapter1_1.js` | `npm run index:ch1-1` | Safely chunks and embeds approved Chapter 1.1 PDF into 99 page-aware vector chunks without altering existing study materials. |
+| `testPhase1PdfWorkflow.js` | `node scripts/testPhase1PdfWorkflow.js` | Automated tests for PDF upload, chunking, and Cloudinary streaming workflow. |
+| `test_api_mapping.js` | `node scripts/test_api_mapping.js` | API route mapping and endpoint connectivity validation across all registered routes. |
 | `createSuperAdmin.js` | `npm run create:super-admin` | Creates the primary administrative user account safely using environment credentials. |
 | `cleanUid.js` | `node scripts/cleanUid.js` | Unsets null UID fields in MongoDB to preserve sparse unique index integrity. |
 | `seed.js` | `npm run seed` | Ingests sample subjects, units, notes, past papers, and quizzes into MongoDB. |

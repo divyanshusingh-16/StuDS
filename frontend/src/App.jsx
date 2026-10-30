@@ -27,15 +27,12 @@ import {
   ExternalLink,
   Download,
   User,
-  X,
   LogOut,
   ShieldCheck,
   Sparkles,
   Send,
   Bot,
-  MessageSquare,
   AlertCircle,
-  Info,
   CornerDownLeft,
 } from 'lucide-react';
 import { 
@@ -1558,6 +1555,19 @@ function Portal() {
                                           <p className="text-neutral-700 dark:text-neutral-300 italic leading-relaxed bg-white dark:bg-[#14161a] p-2.5 rounded-lg border border-neutral-100 dark:border-[#202227]">
                                             "{src.snippet}"
                                           </p>
+                                          {src.sourcePdfUrl && (
+                                            <div className="pt-1 flex items-center justify-end">
+                                              <a
+                                                href={`${normalizePdfUrl(src.sourcePdfUrl)}#page=${src.startPage}`}
+                                                target="_blank"
+                                                rel="noreferrer"
+                                                className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-neutral-700 dark:text-neutral-300 hover:text-neutral-950 dark:hover:text-white transition-colors"
+                                              >
+                                                <ExternalLink className="w-3 h-3" />
+                                                <span>Open Page {src.startPage} in PDF</span>
+                                              </a>
+                                            </div>
+                                          )}
                                         </div>
                                       );
                                     })}
